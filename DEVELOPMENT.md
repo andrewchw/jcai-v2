@@ -191,13 +191,139 @@ We're building a Microsoft Edge extension with a chatbot interface for managing 
    - Check that Docker is running
    - Verify the Jira credentials in `mcp-atlassian.env`
    - Ensure OAuth setup has been completed if using OAuth
+   - Check that no other services are using ports 8080 or 9000
+   - Verify Docker network connectivity with `docker network inspect bridge`
+   - If SSE mode is required, ensure the `--transport sse --port 9000` flags are used
 
-2. **Python Server Issues**
+2. **OAuth Connection Issues**
+   - Verify your Jira Cloud instance is properly configured for OAuth
+   - Check that the OAuth credentials in `mcp-atlassian.env` match your Jira app settings
+   - Make sure the redirect URL is properly set
+   - Clear browser cookies and try the OAuth flow again
+   - Run `check_oauth.py` to diagnose specific OAuth issues
+
+3. **Python Server Issues**
    - Check if virtual environment is activated
    - Verify `.env` file has correct configuration
    - Ensure required ports are not already in use
+   - Check for Python dependency issues with `pip list`
+   - Look for error logs in the console output
+   - Verify the OpenRouter API key is valid
 
-3. **Edge Extension Issues**
-   - Check browser console for JavaScript errors
+4. **Edge Extension Issues**
+   - Check browser console for JavaScript errors (press F12)
    - Verify the extension is properly loaded in `edge://extensions/`
-   - Ensure the manifest.json is valid
+   - Ensure the `manifest.json` is valid
+   - Check that content security policies aren't blocking connections
+   - Clear extension storage with `localStorage.clear()` in the console
+   - Try reloading the extension
+
+### Debugging Tools
+
+1. **Docker Debugging**
+   ```powershell
+   # Check Docker container status
+   docker ps
+   
+   # View container logs
+   docker logs <container-id>
+   
+   # Check container network
+   docker network inspect bridge
+   ```
+
+2. **Python Server Debugging**
+   ```powershell
+   # Run the server in debug mode
+   cd python-server
+   python run.py --debug
+   
+   # Check API endpoints
+   curl http://localhost:8000/health
+   ```
+
+3. **API Testing**
+   - Use the Swagger UI at `http://localhost:8000/docs`
+   - Test endpoints directly with curl or Postman
+   - Monitor network requests in the browser developer tools
+
+## Connection Testing
+
+This section provides guidance on verifying the connections between the various components of the system.
+
+### MCP-Atlassian to Jira Cloud Connection
+
+1. **Basic Connectivity Test**
+   ```powershell
+   cd python-server
+   python test_mcp_connection.py
+   ```
+   This script attempts to fetch projects from Jira via the MCP server.
+
+2. **OAuth Verification**
+   ```powershell
+   cd python-server
+   python check_oauth.py
+   ```
+   This script verifies that OAuth authentication is working properly by fetching the current user.
+
+### Python Server to MCP-Atlassian Connection
+
+1. **Start the Python server and check the logs**
+   ```powershell
+   cd python-server
+   .\venv\Scripts\Activate.ps1
+   python run.py
+   ```
+
+2. **Make a test request to trigger MCP communication**
+   ```powershell
+   curl http://localhost:8000/api/jira/projects
+   ```
+   This endpoint should communicate with the MCP server to fetch projects.
+
+### Edge Extension to Python Server Connection
+
+1. **Load the extension and open the console**
+   - Navigate to `edge://extensions/`
+   - Click on "background page" for the extension
+   - Open the Console tab
+
+2. **Send a test message from the extension**
+   - Click on the extension icon to open the sidebar
+   - Enter a test message like "Hello"
+   - Check the network tab in Developer Tools to verify the request to the Python server
+
+3. **Manually test the API connection**
+   ```javascript
+   // Run this in the browser console
+   fetch('http://localhost:8000/api/chat/message', {
+     method: 'POST',
+     headers: {
+       'Content-Type': 'application/json'
+     },
+     body: JSON.stringify({
+       message: 'Test message',
+       conversation_id: null
+     })
+   }).then(response => response.json()).then(console.log)
+   ```
+
+### End-to-End Integration Test
+
+To verify that all components can communicate with each other:
+
+1. Start the MCP-Atlassian server in SSE mode
+2. Start the Python FastAPI server
+3. Load the Edge extension
+4. Send a Jira-related query from the extension (e.g., "Show my Jira tasks")
+5. Verify that:
+   - The request reaches the Python server (check logs)
+   - The Python server forwards the request to the OpenRouter API
+   - The Python server communicates with the MCP server
+   - The MCP server fetches data from Jira
+   - The response flows back to the Edge extension UI
+
+This end-to-end test verifies that all components are properly connected and can communicate with each other.
+
+## Security Considerations

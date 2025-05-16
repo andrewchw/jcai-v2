@@ -58,7 +58,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
   }
-
   // Function to handle sending messages
   function handleSendMessage() {
     const message = userInput.value.trim();
@@ -67,13 +66,85 @@ document.addEventListener('DOMContentLoaded', () => {
     // Add user message to chat
     addUserMessage(message);
     userInput.value = '';
-
-    // Mock response for now - will be replaced with actual API call
-    setTimeout(() => {
-      addBotMessage('I received your message: "' + message + '". This is a placeholder response. The actual integration with the Python server and Jira will be implemented soon.');
-    }, 1000);
-
-    // TODO: Send message to Python server via API call
+    
+    // Create a bot message element for streaming response
+    const botMessageElement = document.createElement('div');
+    botMessageElement.className = 'message bot typing';
+    botMessageElement.textContent = '...';
+    chatMessages.appendChild(botMessageElement);
+    scrollToBottom();
+    
+    // Get the API URL from settings or use default
+    const apiUrl = 'http://localhost:8000/api/chat/stream';
+    
+    // Send message to Python server via streaming API
+    const eventSource = new EventSource(`${apiUrl}?message=${encodeURIComponent(message)}`);
+    let fullResponse = '';
+    let jiraReferences = [];
+    
+    eventSource.onmessage = (event) => {
+      if (event.data === '[DONE]') {
+        eventSource.close();
+        // Update with full message when complete
+        botMessageElement.className = 'message bot';
+        botMessageElement.textContent = fullResponse;
+        
+        // Display Jira references if any
+        if (jiraReferences.length > 0) {
+          const referencesElement = document.createElement('div');
+          referencesElement.className = 'jira-references';
+          
+          const title = document.createElement('div');
+          title.className = 'references-title';
+          title.textContent = 'Jira References:';
+          referencesElement.appendChild(title);
+          
+          jiraReferences.forEach(ref => {
+            const refElement = document.createElement('div');
+            refElement.className = 'jira-reference';
+            refElement.textContent = `${ref.key}: ${ref.summary} (${ref.status})`;
+            referencesElement.appendChild(refElement);
+          });
+          
+          chatMessages.appendChild(referencesElement);
+        }
+        
+        scrollToBottom();
+        return;
+      }
+      
+      try {
+        const data = JSON.parse(event.data);
+        
+        switch (data.event) {
+          case 'token':
+            fullResponse += data.message;
+            botMessageElement.textContent = fullResponse;
+            scrollToBottom();
+            break;
+            
+          case 'reference':
+            jiraReferences.push(data.reference);
+            break;
+            
+          case 'error':
+            botMessageElement.className = 'message bot error';
+            botMessageElement.textContent = data.message;
+            eventSource.close();
+            break;
+        }
+      } catch (e) {
+        console.error('Error parsing event data:', e);
+      }
+    };
+    
+    eventSource.onerror = (error) => {
+      console.error('EventSource error:', error);
+      eventSource.close();
+      botMessageElement.className = 'message bot error';
+      botMessageElement.textContent = 'Error connecting to server. Please try again later.';
+      scrollToBottom();
+    };
   }
 
   // Function to add a user message to the chat

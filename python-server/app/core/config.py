@@ -19,27 +19,14 @@ class Settings(BaseSettings):
     CORS_ORIGINS: List[str] = ["*"]  # For development - restrict in production
     
     # MCP-Atlassian server settings
-    MCP_SERVER_URL: str = "http://localhost:9000/sse"
+    MCP_SERVER_URL: str = "http://localhost:9000/sse"  # For SSE transport
     
     # OpenRouter API settings (for LLM)
     OPENROUTER_API_KEY: Optional[str] = None
-    OPENROUTER_MODEL: str = "meta-llama/llama-3-8b-instruct"
+    OPENROUTER_MODEL: str = "anthropic/claude-3-sonnet"
     
     # SQLite database settings
     DATABASE_URL: str = "sqlite:///./jcai.db"
-    
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
-
-
-settings = Settings()
-    MCP_SERVER_URL: str = "http://localhost:9000/sse"  # For SSE transport
-    
-    # API Keys
-    OPENROUTER_API_KEY: Optional[str] = None
-    
-    # SQLite settings
     SQLITE_DB_URL: str = "sqlite:///./jcai.db"
     
     class Config:
