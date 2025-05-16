@@ -1,0 +1,57 @@
+# Python-specific
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+venv/
+ENV/
+
+# Edge extension packaging
+*.zip
+*.crx
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+*.log
+
+# Project-specific
+.env
+env
+mcp-atlassian.env
+db.sqlite3
+jcai.db
+.mcp-atlassian/
+dockerREADME.txt
+dockerREADME1.txt
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
