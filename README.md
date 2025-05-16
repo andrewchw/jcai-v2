@@ -21,7 +21,15 @@ This project implements a Microsoft Edge extension with a chatbot interface for 
 ### Setup MCP-Atlassian Server
 
 1. Clone this repository
-2. Make sure your `mcp-atlassian.env` file is configured with the correct credentials
+2. Create the environment configuration file:
+
+```powershell
+# Copy the example file and edit with your credentials
+Copy-Item mcp-atlassian.env.example mcp-atlassian.env
+# Edit the file with your actual Jira credentials
+notepad mcp-atlassian.env
+```
+
 3. Start the MCP-Atlassian server using the provided script:
 
 ```powershell
@@ -46,7 +54,16 @@ The server will be available at:
 
 ### Setup Python FastAPI Server
 
-1. Set up a virtual environment:
+1. Create the environment configuration file:
+
+```powershell
+# Copy the example file and edit with your credentials
+Copy-Item env.example env
+# Edit the file with your actual API keys and settings
+notepad env
+```
+
+2. Set up a virtual environment:
 
 ```powershell
 cd python-server
