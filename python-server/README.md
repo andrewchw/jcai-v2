@@ -31,7 +31,8 @@ The server will start at `http://localhost:8000` with API documentation availabl
 ## Key Features
 
 - **Jira API Integration**: Using the Atlassian Python API library to interact with Jira
-- **OAuth 2.0 Authentication**: Support for Jira Cloud OAuth 2.0 authentication
+- **OAuth 2.0 Authentication**: Full support for Jira Cloud OAuth 2.0 authentication flow with token refreshing
+- **Dual Authentication Methods**: Support for both API token and OAuth 2.0 authentication
 - **FastAPI Framework**: Modern, high-performance web framework for building APIs
 - **Async Processing**: Asynchronous request handling for better performance
 
@@ -73,3 +74,52 @@ python jira_oauth2_example.py
 3. Configure the callback URL (e.g., `http://localhost:8000/api/auth/callback`)
 4. Add permissions for Jira API access
 5. Copy the client ID and secret to your `.env` file
+
+## OAuth 2.0 Implementation
+
+The OAuth 2.0 implementation follows the Authorization Code Grant flow and includes:
+
+1. **Authorization**: Redirect users to the Atlassian login page to authorize access
+2. **Token Exchange**: Exchange authorization code for access and refresh tokens
+3. **Token Management**: Store tokens securely and refresh them when they expire
+4. **API Integration**: Use tokens with the Atlassian Python API
+
+### Example OAuth Flow
+
+```python
+# Initialize OAuth 2.0 session
+from requests_oauthlib import OAuth2Session
+from app.core.config import settings
+
+# Create OAuth session
+oauth = OAuth2Session(
+    settings.JIRA_OAUTH_CLIENT_ID,
+    scope=["read:jira-user", "read:jira-work", "write:jira-work"],
+    redirect_uri=settings.JIRA_OAUTH_CALLBACK_URL
+)
+
+# Generate authorization URL
+auth_url, state = oauth.authorization_url(
+    "https://auth.atlassian.com/authorize",
+    audience="api.atlassian.com"
+)
+
+# Redirect user to auth_url
+# ...
+
+# In the callback handler:
+token = oauth.fetch_token(
+    "https://auth.atlassian.com/oauth/token",
+    code=authorization_code,
+    client_secret=settings.JIRA_OAUTH_CLIENT_SECRET
+)
+
+# Set token in JiraService
+from app.services.jira_service import jira_service
+jira_service.set_oauth2_token(token)
+
+# Now you can use the service with OAuth
+projects = jira_service.get_projects()
+```
+
+For more details, see the OAuth 2.0 example script (`jira_oauth2_example.py`) and the documentation in `docs/OAUTH2.md`.

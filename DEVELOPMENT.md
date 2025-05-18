@@ -30,8 +30,14 @@ We're building a Microsoft Edge extension with a chatbot interface for managing 
    ```
 
 2. **Configure Jira credentials**:
-   - Ensure `env` file is properly configured with Jira credentials
-   - Set up OAuth 2.0 credentials for Jira Cloud access
+   - Ensure `.env` file is properly configured with Jira credentials
+   - Set up OAuth 2.0 credentials in the [Atlassian Developer Console](https://developer.atlassian.com/console/myapps/)
+   - Configure the credentials in the `.env` file:
+     ```
+     JIRA_OAUTH_CLIENT_ID=your_client_id
+     JIRA_OAUTH_CLIENT_SECRET=your_client_secret
+     JIRA_OAUTH_CALLBACK_URL=http://localhost:8000/api/auth/jira/callback
+     ```
 
 3. **Set up Python server**:
    ```powershell
@@ -39,7 +45,7 @@ We're building a Microsoft Edge extension with a chatbot interface for managing 
    python -m venv venv
    .\venv\Scripts\Activate.ps1
    pip install -r requirements.txt
-   pip install atlassian-python-api
+   pip install atlassian-python-api requests-oauthlib
    cp .env.example .env
    # Edit .env with your configuration
    ```
@@ -79,10 +85,10 @@ We're building a Microsoft Edge extension with a chatbot interface for managing 
   cd python-server
   python test_jira_connection.py
   ```
-- To verify OAuth status:
+- To test OAuth 2.0 flow:
   ```powershell
   cd python-server
-  python check_oauth.py
+  python jira_oauth2_example.py
   ```
 - Key features of Atlassian Python API:
   - Support for Jira Cloud and Server
@@ -196,3 +202,64 @@ We're building a Microsoft Edge extension with a chatbot interface for managing 
    - Check browser console for JavaScript errors
    - Verify the extension is properly loaded in `edge://extensions/`
    - Ensure the manifest.json is valid
+
+## OAuth 2.0 Implementation
+
+### Overview
+
+We've implemented OAuth 2.0 authentication for secure communication with Atlassian Jira Cloud APIs. This implementation:
+
+1. Follows the Authorization Code Grant flow
+2. Handles token refreshing automatically
+3. Provides secure storage of access and refresh tokens
+4. Integrates with the Atlassian Python API
+
+### Setup Steps
+
+1. **Register an OAuth App in Atlassian Developer Console**
+   - Go to [Atlassian Developer Console](https://developer.atlassian.com/console/myapps/)
+   - Create a new OAuth 2.0 integration
+   - Configure the callback URL (e.g., `http://localhost:8000/callback`)
+   - Request the necessary scopes (read/write)
+   - Note your Client ID and Client Secret
+
+2. **Configure Environment Variables**
+   - Update the `.env` file with your OAuth credentials:
+     ```
+     JIRA_OAUTH_CLIENT_ID=your_client_id
+     JIRA_OAUTH_CLIENT_SECRET=your_client_secret
+     JIRA_OAUTH_CALLBACK_URL=http://localhost:8000/api/auth/jira/callback
+     ```
+
+3. **Test OAuth Flow**
+   - Run the OAuth example script:
+     ```powershell
+     cd python-server
+     .\venv\Scripts\Activate.ps1
+     python jira_oauth2_example.py
+     ```
+   - Open `http://localhost:8000` in your browser
+   - Click "Login" to initiate the OAuth flow
+   - Grant permission when redirected to Atlassian
+
+### Implementation Details
+
+The OAuth 2.0 flow is implemented in several components:
+
+1. **JiraService Class** (`app/services/jira_service.py`)
+   - `set_oauth2_token()`: Sets the OAuth token and initializes the client
+   - `_initialize_client()`: Creates a client with OAuth credentials
+   - Token refresh handling is built into the service
+
+2. **OAuth Models** (`app/models/jira.py`)
+   - `OAuthToken`: Pydantic model for OAuth token data
+
+3. **API Endpoints** (`app/api/endpoints/jira.py`)
+   - `/oauth/token`: Endpoint to set OAuth token
+
+4. **Example Script** (`jira_oauth2_example.py`)
+   - Complete implementation of OAuth flow
+   - Token storage and refresh handling
+   - Example API usage with OAuth authentication
+
+For detailed documentation, see `python-server/docs/OAUTH2.md`.

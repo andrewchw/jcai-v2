@@ -41,12 +41,14 @@ This project involves developing a Microsoft Edge extension with a chatbot inter
 - Documented development workflow and setup process
 
 #### In Progress Tasks
-1. Set up Atlassian Python API integration (P0) - 80% complete
+1. Set up Atlassian Python API integration (P0) - 95% complete
    - ✅ Configure with Jira Cloud API token
    - ✅ Set up OAuth credentials
    - ✅ Set up Python environment
    - ✅ Document API usage process
-   - ⏳ Test basic connectivity to Jira Cloud
+   - ✅ Test basic connectivity to Jira Cloud
+   - ✅ Implement OAuth 2.0 flow with Atlassian Python API
+   - ⏳ Create automated tests for API functionality
 
 2. Enhance Edge extension UI (P0) - 60% complete
    - ✅ Create extension manifest and icon
