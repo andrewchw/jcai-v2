@@ -1,103 +1,75 @@
-# Python FastAPI Server for Jira Chatbot Edge Extension
+# Python Server for Microsoft Edge Chatbot Extension for Jira
 
-This is the FastAPI backend server for the Jira Chatbot Edge Extension. It handles:
-1. Natural language processing via OpenRouter API
-2. Communication with the MCP-Atlassian server
-3. Managing conversations and chat history
-4. Scheduling and sending reminders
+This directory contains the FastAPI backend server for the Microsoft Edge Chatbot Extension for Jira, which integrates with Jira Cloud using the Atlassian Python API.
 
-## Setup and Development
+## Setup Instructions
 
-### Requirements
+1. Create and activate a Python virtual environment:
+   ```powershell
+   python -m venv venv
+   .\venv\Scripts\Activate.ps1
+   ```
 
-- Python 3.9+
-- All dependencies listed in `requirements.txt`
+2. Install required packages:
+   ```powershell
+   pip install -r requirements.txt
+   ```
 
-### Getting Started
+3. Configure the environment variables:
+   ```powershell
+   cp .env.example .env
+   # Edit .env with your configuration
+   ```
 
-1. Create a virtual environment:
-```
-python -m venv venv
-```
+4. Run the server:
+   ```powershell
+   python run.py
+   ```
 
-2. Activate the virtual environment:
-```
-# Windows
-.\venv\Scripts\activate
+The server will start at `http://localhost:8000` with API documentation available at `http://localhost:8000/docs`.
 
-# Unix/MacOS
-source venv/bin/activate
-```
+## Key Features
 
-3. Install dependencies:
-```
-pip install -r requirements.txt
-```
+- **Jira API Integration**: Using the Atlassian Python API library to interact with Jira
+- **OAuth 2.0 Authentication**: Support for Jira Cloud OAuth 2.0 authentication
+- **FastAPI Framework**: Modern, high-performance web framework for building APIs
+- **Async Processing**: Asynchronous request handling for better performance
 
-4. Create a `.env` file with the following variables:
-```
-# Environment
-ENVIRONMENT=development
-DEBUG=True
+## Directory Structure
 
-# Server
-HOST=0.0.0.0
-PORT=8000
+- `app/`: Main application package
+  - `api/`: API endpoints and routes
+    - `endpoints/`: Individual API endpoint modules
+  - `core/`: Core application components (config, etc.)
+  - `models/`: Pydantic data models
+  - `services/`: Business logic services
+- `tests/`: Unit and integration tests
 
-# MCP Server
-MCP_SERVER_URL=http://localhost:9000/sse
+## Authentication
 
-# API Keys
-OPENROUTER_API_KEY=your_openrouter_api_key
-```
+Two authentication methods are supported:
 
-5. Run the development server:
-```
-python run.py
-```
-
-Or directly with uvicorn:
-```
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-## API Documentation
-
-When the server is running in development mode, you can access the API documentation at:
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
-
-## Project Structure
-
-- `app/` - Main application package
-  - `main.py` - Application entry point
-  - `api/` - API endpoints
-    - `routes.py` - Main router
-    - `endpoints/` - Endpoint modules
-      - `chat.py` - Chat-related endpoints
-      - `jira.py` - Jira-related endpoints
-      - `health.py` - Health check endpoint
-  - `core/` - Core application modules
-    - `config.py` - Application configuration
-  - `models/` - Data models
-    - `chat.py` - Chat-related models
-    - `jira.py` - Jira-related models
-  - `services/` - Business logic services
-    - `chat_service.py` - Chat processing service
-    - `llm_service.py` - LLM integration service
-    - `mcp_service.py` - MCP-Atlassian integration service
-- `tests/` - Test modules
-- `requirements.txt` - Project dependencies
-- `run.py` - Script to run the server
+1. **API Token**: For server-to-server integration, using JIRA_USERNAME and JIRA_API_TOKEN
+2. **OAuth 2.0**: For user-based authentication, using JIRA_OAUTH_CLIENT_ID and JIRA_OAUTH_CLIENT_SECRET
 
 ## Testing
 
-Run tests with pytest:
-```
-pytest
+To test Jira API connectivity:
+
+```powershell
+python test_jira_connection.py
 ```
 
-Or with coverage:
+To test OAuth 2.0 authentication:
+
+```powershell
+python jira_oauth2_example.py
 ```
-pytest --cov=app
-```
+
+## OAuth 2.0 Setup
+
+1. Go to [Atlassian Developer Console](https://developer.atlassian.com/console/myapps/)
+2. Create a new OAuth 2.0 integration
+3. Configure the callback URL (e.g., `http://localhost:8000/api/auth/callback`)
+4. Add permissions for Jira API access
+5. Copy the client ID and secret to your `.env` file

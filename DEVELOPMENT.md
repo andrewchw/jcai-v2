@@ -8,7 +8,7 @@ We're building a Microsoft Edge extension with a chatbot interface for managing 
 
 1. **Edge Extension**: The frontend UI that users interact with
 2. **Python FastAPI Server**: The backend that processes user requests and communicates with both the LLM and Jira
-3. **MCP-Atlassian Server**: A Docker-based server that abstracts Jira API complexities
+3. **Atlassian Python API**: Library that interfaces with Jira Cloud APIs
 4. **SQLite Database**: Local storage for caching data
 
 ## Development Environment Setup
@@ -16,7 +16,6 @@ We're building a Microsoft Edge extension with a chatbot interface for managing 
 ### Prerequisites
 
 - Git
-- Docker Desktop
 - Python 3.9+
 - Node.js 18+ (for extension development)
 - VS Code (recommended)
@@ -30,12 +29,9 @@ We're building a Microsoft Edge extension with a chatbot interface for managing 
    cd jcai-v2
    ```
 
-2. **Configure MCP-Atlassian server**:
-   - Ensure `mcp-atlassian.env` is properly configured with Jira credentials
-   - Run OAuth setup if using OAuth authentication:
-     ```powershell
-     .\setup-oauth.ps1
-     ```
+2. **Configure Jira credentials**:
+   - Ensure `env` file is properly configured with Jira credentials
+   - Set up OAuth 2.0 credentials for Jira Cloud access
 
 3. **Set up Python server**:
    ```powershell
@@ -43,6 +39,7 @@ We're building a Microsoft Edge extension with a chatbot interface for managing 
    python -m venv venv
    .\venv\Scripts\Activate.ps1
    pip install -r requirements.txt
+   pip install atlassian-python-api
    cp .env.example .env
    # Edit .env with your configuration
    ```
@@ -54,13 +51,7 @@ We're building a Microsoft Edge extension with a chatbot interface for managing 
 
 ## Running the Application
 
-1. **Start MCP-Atlassian server**:
-   ```powershell
-   .\start-mcp-server.ps1
-   ```
-   Choose "Y" when prompted about SSE mode.
-
-2. **Start Python FastAPI server**:
+1. **Start Python FastAPI server**:
    ```powershell
    cd python-server
    .\venv\Scripts\Activate.ps1
@@ -68,33 +59,36 @@ We're building a Microsoft Edge extension with a chatbot interface for managing 
    ```
    The API will be available at `http://localhost:8000/docs`
 
-3. **Test the Edge extension**:
+2. **Test the Edge extension**:
    The extension should be available in your Edge browser. Click the extension icon to open the sidebar.
+
+3. **Test Jira API Connection**:
+   ```powershell
+   cd python-server
+   .\venv\Scripts\Activate.ps1
+   python test_jira_connection.py
+   ```
 
 ## Development Workflow
 
-### MCP-Atlassian Server Development
+### Atlassian Python API Development
 
-- The MCP-Atlassian server is a pre-built Docker container, so you don't need to modify it
+- The Atlassian Python API is a Python library that provides access to Jira Cloud APIs
 - To check if it's working correctly, run:
   ```powershell
   cd python-server
-  python test_mcp_connection.py
+  python test_jira_connection.py
   ```
 - To verify OAuth status:
   ```powershell
   cd python-server
   python check_oauth.py
   ```
-- For SSE communication, the server needs to be started with:
-  ```powershell
-  .\start-mcp-server.ps1
-  # Choose "Y" when prompted about SSE mode
-  ```
-- MCP server endpoints:
-  - Standard mode: http://localhost:8080
-  - SSE mode (for Python server): http://localhost:9000/sse
-  - Invoke endpoint for tools: http://localhost:9000/sse/invoke
+- Key features of Atlassian Python API:
+  - Support for Jira Cloud and Server
+  - OAuth 2.0 authentication support
+  - Comprehensive access to Jira REST APIs
+  - Well-documented examples in the [GitHub repository](https://github.com/atlassian-api/atlassian-python-api)
 
 ### Python Server Development
 
@@ -104,7 +98,7 @@ We're building a Microsoft Edge extension with a chatbot interface for managing 
 
 2. **Services**
    - Business logic should be in `python-server/app/services/`
-   - `mcp_service.py`: Handles communication with MCP-Atlassian server
+   - `jira_service.py`: Handles communication with Jira using Atlassian Python API
    - `llm_service.py`: Handles communication with OpenRouter LLM
    - `chat_service.py`: Processes chat messages and orchestrates responses
 
@@ -143,10 +137,10 @@ We're building a Microsoft Edge extension with a chatbot interface for managing 
 ## Testing
 
 1. **Component Testing**
-   - MCP-Atlassian server: Use the provided test scripts
+   - Atlassian Python API integration: Use the provided test scripts
      ```powershell
      # Test basic connectivity
-     python python-server/test_mcp_connection.py
+     python python-server/test_jira_connection.py
      
      # Test OAuth configuration
      python python-server/check_oauth.py
@@ -175,22 +169,23 @@ We're building a Microsoft Edge extension with a chatbot interface for managing 
 
 - The extension can be loaded as an unpacked extension in Edge
 - The Python server runs locally on your machine
-- The MCP-Atlassian server runs in Docker
+- The Atlassian Python API is included in the Python environment
 
 ### Production Deployment
 
 - Package the Edge extension for the Microsoft Store
 - Deploy the Python server to a company intranet server
-- Set up the MCP-Atlassian server as a Docker container on the intranet
+- Ensure the Atlassian Python API is installed on the production server
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **MCP-Atlassian Server Connection Problems**
-   - Check that Docker is running
-   - Verify the Jira credentials in `mcp-atlassian.env`
+1. **Atlassian Python API Connection Problems**
+   - Verify the Jira credentials in the environment file
    - Ensure OAuth setup has been completed if using OAuth
+   - Check if Atlassian Python API is properly installed
+   - Verify network connectivity to Jira Cloud
 
 2. **Python Server Issues**
    - Check if virtual environment is activated

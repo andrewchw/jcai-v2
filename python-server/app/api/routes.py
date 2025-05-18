@@ -1,8 +1,7 @@
 from fastapi import APIRouter
+from app.api.endpoints import jira
 
-from app.api.endpoints import chat, jira, health
+api_router = APIRouter()
 
-router = APIRouter()
-router.include_router(health.router, prefix="/health", tags=["health"])
-router.include_router(chat.router, prefix="/chat", tags=["chat"])
-router.include_router(jira.router, prefix="/jira", tags=["jira"])
+# Include Jira endpoints
+api_router.include_router(jira.router, prefix="/jira", tags=["jira"])

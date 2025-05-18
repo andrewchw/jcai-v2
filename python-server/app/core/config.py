@@ -1,50 +1,40 @@
-from pydantic_settings import BaseSettings
-from typing import List, Optional
+import os
+from dotenv import load_dotenv
+from pydantic import BaseModel
 
+# Load environment variables from .env file
+load_dotenv()
 
-class Settings(BaseSettings):
-    PROJECT_NAME: str = "JCAI - Jira Chatbot AI Assistant"
-    PROJECT_DESCRIPTION: str = "A FastAPI server for the Jira Chatbot Edge Extension"
-    VERSION: str = "0.1.0"
+class Settings(BaseModel):
+    # API settings
+    API_HOST: str = os.getenv("API_HOST", "localhost")
+    API_PORT: int = int(os.getenv("API_PORT", "8000"))
+    SITE_URL: str = os.getenv("SITE_URL", "http://localhost:8000")
     
-    # Environment settings
-    ENVIRONMENT: str = "development"  # development, staging, production
-    DEBUG: bool = True
+    # Jira settings
+    JIRA_URL: str = os.getenv("JIRA_URL", "")
+    JIRA_USERNAME: str = os.getenv("JIRA_USERNAME", "")
+    JIRA_API_TOKEN: str = os.getenv("JIRA_API_TOKEN", "")
+    DEFAULT_JIRA_PROJECT_KEY: str = os.getenv("DEFAULT_JIRA_PROJECT_KEY", "")
     
-    # Server settings
-    HOST: str = "0.0.0.0"
-    PORT: int = 8000
+    # OAuth 2.0 settings for Jira
+    JIRA_OAUTH_CLIENT_ID: str = os.getenv("JIRA_OAUTH_CLIENT_ID", "")
+    JIRA_OAUTH_CLIENT_SECRET: str = os.getenv("JIRA_OAUTH_CLIENT_SECRET", "")
+    JIRA_OAUTH_CALLBACK_URL: str = os.getenv("JIRA_OAUTH_CALLBACK_URL", "")
     
-    # CORS settings
-    CORS_ORIGINS: List[str] = ["*"]  # For development - restrict in production
+    # Database settings
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./app.db")
     
-    # MCP-Atlassian server settings
-    MCP_SERVER_URL: str = "http://localhost:9000/sse"
+    # Memory settings
+    MEMORY_PATH: str = os.getenv("MEMORY_PATH", "./memory.jsonl")
+    USE_FALLBACK_MEMORY: bool = os.getenv("USE_FALLBACK_MEMORY", "True").lower() == "true"
     
-    # OpenRouter API settings (for LLM)
-    OPENROUTER_API_KEY: Optional[str] = None
-    OPENROUTER_MODEL: str = "meta-llama/llama-3-8b-instruct"
+    # Reminder settings
+    REMINDER_CHECK_INTERVAL: int = int(os.getenv("REMINDER_CHECK_INTERVAL", "300"))
     
-    # SQLite database settings
-    DATABASE_URL: str = "sqlite:///./jcai.db"
-    
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    # Debug settings
+    DEBUG: bool = os.getenv("DEBUG", "False").lower() == "true"
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "info").lower()
 
-
-settings = Settings()
-    MCP_SERVER_URL: str = "http://localhost:9000/sse"  # For SSE transport
-    
-    # API Keys
-    OPENROUTER_API_KEY: Optional[str] = None
-    
-    # SQLite settings
-    SQLITE_DB_URL: str = "sqlite:///./jcai.db"
-    
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
-
-
+# Create a settings object
 settings = Settings()

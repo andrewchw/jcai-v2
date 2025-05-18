@@ -1,12 +1,12 @@
 # Project Management Plan: Microsoft Edge Chatbot Extension for Jira Action Item Management
 
 ## Project Overview
-This project involves developing a Microsoft Edge extension with a chatbot interface that enables teams to manage Jira action items through natural language commands. The system will automate task creation, reminders, and evidence tracking while maintaining firewall compliance. The solution leverages the sooperset/mcp-atlassian server for Jira Cloud integration and a free open-source LLM API (OpenRouter) for conversational intelligence.
+This project involves developing a Microsoft Edge extension with a chatbot interface that enables teams to manage Jira action items through natural language commands. The system will automate task creation, reminders, and evidence tracking while maintaining firewall compliance. The solution leverages the Atlassian Python API for Jira Cloud integration and a free open-source LLM API (OpenRouter) for conversational intelligence.
 
 ## Project Structure
 - **Edge Extension**: Chromium-based sidebar UI for natural language task management
-- **Python Server**: Backend for LLM processing and MCP server communication
-- **MCP Server**: Docker-based server handling Jira Cloud interactions
+- **Python Server**: Backend for LLM processing and Jira API communication
+- **Atlassian Python API**: Library for Jira Cloud interactions
 - **Database**: SQLite for caching task data
 
 ## Task Management Instructions
@@ -25,7 +25,7 @@ This project involves developing a Microsoft Edge extension with a chatbot inter
 - Creation of PRD, SRS, and UI documentation
 - Setup of development environment with VS Code and GitHub Copilot
 - Repository structure definition and creation
-- Configuration of environment files for the MCP-Atlassian server
+- Configuration of environment files
 - Initial setup of OAuth credentials for Jira Cloud integration
 
 #### Completed Tasks (Updated May 16, 2025)
@@ -33,21 +33,19 @@ This project involves developing a Microsoft Edge extension with a chatbot inter
 - Creation of PRD, SRS, and UI documentation
 - Setup of development environment with VS Code and GitHub Copilot
 - Repository structure definition and creation
-- Configuration of environment files for the MCP-Atlassian server
+- Configuration of environment files
 - Initial setup of OAuth credentials for Jira Cloud integration
-- Created PowerShell scripts for MCP-Atlassian server management
-- Created Docker configuration for MCP-Atlassian server
 - Developed Edge extension scaffold with basic UI components
 - Set up Python FastAPI server structure with endpoints
-- Created testing scripts for MCP server connectivity
+- Created testing scripts for Jira API connectivity
 - Documented development workflow and setup process
 
 #### In Progress Tasks
-1. Set up the Docker environment for the MCP server (P0) - 80% complete
+1. Set up Atlassian Python API integration (P0) - 80% complete
    - ✅ Configure with Jira Cloud API token
    - ✅ Set up OAuth credentials
-   - ✅ Create Docker management scripts
-   - ✅ Document container setup process
+   - ✅ Set up Python environment
+   - ✅ Document API usage process
    - ⏳ Test basic connectivity to Jira Cloud
 
 2. Enhance Edge extension UI (P0) - 60% complete
@@ -60,7 +58,7 @@ This project involves developing a Microsoft Edge extension with a chatbot inter
 #### Pending Tasks
 1. Complete Python server integration (P0)
    - Implement OpenRouter API integration for LLM capabilities
-   - Finalize MCP server communication via SSE
+   - Finalize Atlassian Python API communication
    - Add error handling and retry mechanisms
 
 3. Implement OAuth 2.0 authentication flow (P1)
@@ -141,17 +139,17 @@ This project involves developing a Microsoft Edge extension with a chatbot inter
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| Jira API changes | Medium | High | Implement version checking, monitor Atlassian announcements |
+| Jira API changes | Medium | High | Use Atlassian Python API which handles versioning, monitor Atlassian announcements |
 | OpenRouter API limitations | High | Medium | Implement request throttling, consider fallback LLM options |
 | Firewall restrictions | Medium | High | Document network requirements, test in isolated environment |
-| OAuth token expiration | Low | Medium | Implement robust token refresh mechanism |
+| OAuth token expiration | Low | Medium | Implement robust token refresh mechanism using Atlassian Python API |
 | Browser version compatibility | Low | Medium | Test on multiple Edge versions, use polyfills where needed |
 
 ## Team Roles & Responsibilities
 - Project Manager: Overall coordination, timeline management, status reporting
 - Frontend Developer: Edge extension UI, browser notifications, OAuth flow
-- Backend Developer: Python server, LLM integration, MCP server communication
-- DevOps: Docker setup, intranet deployment, security compliance
+- Backend Developer: Python server, LLM integration, Atlassian API integration
+- DevOps: Environment setup, intranet deployment, security compliance
 - QA Engineer: Testing strategy, test case development, bug verification
 
 ## Communication Plan
@@ -168,22 +166,22 @@ This project involves developing a Microsoft Edge extension with a chatbot inter
 - Zero missed reminders for due tasks
 - Firewall compliance maintained throughout deployment
 
-## Immediate Next Steps (Updated May 16, 2025)
+## Immediate Next Steps (Updated May 18, 2025)
 
-### Day 3-4 (May 16-17, 2025): Docker & Project Setup - COMPLETED
-1. ✅ Create PowerShell scripts for MCP-Atlassian server management
-2. ✅ Set up configuration for OAuth connections
-3. ✅ Create basic folder structure for Edge extension
-4. ✅ Create basic folder structure for Python FastAPI server
-5. ✅ Create testing scripts for MCP server connectivity
+### Day 3-4 (May 16-17, 2025): Project Setup & Environment Configuration - COMPLETED
+1. ✅ Set up configuration for OAuth connections
+2. ✅ Create basic folder structure for Edge extension
+3. ✅ Create basic folder structure for Python FastAPI server
+4. ✅ Setup Python environment for development
 
 ### Day 5 (May 18, 2025): Integration Testing & Connection Verification - CURRENT PRIORITY
-1. Test MCP-Atlassian server communication with Jira Cloud
-   - Run the test_mcp_connection.py script to verify connectivity
-   - Test OAuth flow completion with check_oauth.py
+1. Install and set up Atlassian Python API for Jira Cloud integration
+   - Install required packages including Atlassian Python API
+   - Configure OAuth 2.0 credentials for Jira Cloud access
+   - Create test scripts to verify connectivity
    - Document any connection issues and their solutions
 2. Verify all components can communicate
-   - Ensure Python server can connect to MCP-Atlassian
+   - Ensure Python server can connect to Jira via Atlassian Python API
    - Confirm Edge extension can make requests to Python server
 
 ### Day 6-7 (May 19-20, 2025): Edge Extension Enhancement
@@ -193,8 +191,8 @@ This project involves developing a Microsoft Edge extension with a chatbot inter
    - Create settings configuration page
 
 ### Day 8-9 (May 21-22, 2025): Python Server Development
-1. Enhance MCP service integration
-   - Implement proper SSE communication with MCP server
+1. Enhance Atlassian Python API integration
+   - Create Jira service class using Atlassian Python API
    - Create data models for Jira entities
    - Set up error handling and retry logic
 2. Develop LLM integration with OpenRouter
