@@ -115,8 +115,14 @@ def refresh_token(token):
         # Check if token is expired or about to expire (within 60 seconds)
         if 'expires_at' in token:
             expires_at = token['expires_at']
-            if datetime.now().timestamp() > (expires_at - 60):
-                logger.info("Token is expired or about to expire, refreshing...")
+            current_time = datetime.now().timestamp()
+            time_remaining = expires_at - current_time
+            
+            if time_remaining <= 60:  # Within 60 seconds of expiration or already expired
+                if time_remaining <= 0:
+                    logger.info(f"Token EXPIRED {timedelta(seconds=int(abs(time_remaining)))} ago, refreshing...")
+                else:
+                    logger.info(f"Token will expire in {timedelta(seconds=int(time_remaining))}, refreshing...")
                 
                 # Refresh the token
                 new_token = oauth.refresh_token(
@@ -125,6 +131,12 @@ def refresh_token(token):
                     client_id=CLIENT_ID,
                     client_secret=CLIENT_SECRET
                 )
+                
+                # Calculate new expiration
+                if 'expires_at' in new_token:
+                    new_expires_at = new_token['expires_at']
+                    new_expiry = datetime.fromtimestamp(new_expires_at)
+                    logger.info(f"Token refreshed successfully! New expiration: {new_expiry.strftime('%Y-%m-%d %H:%M:%S')}")
                 
                 # Save the new token
                 save_token(new_token)
@@ -176,12 +188,29 @@ async def root():
             # Get accessible resources
             resources = get_accessible_resources(token)
             if resources:
+                # Calculate token expiration information if available
+                token_info = {}
+                if 'expires_at' in token:
+                    expires_at = token['expires_at']
+                    current_time = datetime.now().timestamp()
+                    time_remaining = expires_at - current_time
+                    
+                    if time_remaining > 0:
+                        token_info["expires_in"] = str(timedelta(seconds=int(time_remaining)))
+                        token_info["status"] = "active"
+                    else:
+                        token_info["expired_since"] = str(timedelta(seconds=int(abs(time_remaining))))
+                        token_info["status"] = "expired (will auto-refresh on next API call)"
+                        
                 return {
                     "message": "You are already authenticated with Jira",
                     "status": "authenticated",
+                    "token": token_info if token_info else "Unknown expiration",
                     "resources": resources,
                     "actions": {
                         "get_projects": "/projects",
+                        "get_token_info": "/token",
+                        "monitor_token": "Run token_countdown.py in terminal",
                         "logout": "/logout"
                     }
                 }
@@ -487,9 +516,41 @@ async def show_token():
         if "refresh_token" in token:
             token["refresh_token"] = token["refresh_token"][:5] + "..."
         
+        # Calculate expiration information if available
+        expiration_info = {}
+        if 'expires_at' in token:
+            expires_at = token['expires_at']
+            current_time = datetime.now().timestamp()
+            time_remaining = expires_at - current_time
+            refresh_at = expires_at - 60  # 60 seconds before expiration
+            time_to_refresh = refresh_at - current_time
+            
+            # Format times
+            if time_remaining > 0:
+                expiration_info["expires_in_seconds"] = int(time_remaining)
+                expiration_info["expires_in_formatted"] = str(timedelta(seconds=int(time_remaining)))
+                expiration_info["status"] = "active"
+            else:
+                expiration_info["expires_in_seconds"] = 0
+                expiration_info["expired_since"] = str(timedelta(seconds=int(abs(time_remaining))))
+                expiration_info["status"] = "expired"
+                
+            # Refresh information
+            if time_to_refresh > 0:
+                expiration_info["refresh_in_seconds"] = int(time_to_refresh)
+                expiration_info["refresh_in_formatted"] = str(timedelta(seconds=int(time_to_refresh)))
+                expiration_info["refresh_status"] = "waiting"
+            else:
+                expiration_info["refresh_status"] = "ready"
+                
+            # Add absolute times
+            expiration_info["expires_at"] = datetime.fromtimestamp(expires_at).isoformat()
+            expiration_info["refresh_at"] = datetime.fromtimestamp(refresh_at).isoformat()
+        
         return {
             "status": "success",
-            "token": token
+            "token": token,
+            "expiration": expiration_info if 'expires_at' in token else "Unknown"
         }
     else:
         return {

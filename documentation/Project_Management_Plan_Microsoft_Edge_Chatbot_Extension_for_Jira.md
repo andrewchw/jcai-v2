@@ -168,6 +168,38 @@ This project involves developing a Microsoft Edge extension with a chatbot inter
 - Zero missed reminders for due tasks
 - Firewall compliance maintained throughout deployment
 
+## Technical Implementation Details
+
+### OAuth Token Management
+
+#### Current Implementation
+- OAuth 2.0 flow with Atlassian Jira Cloud
+- Token refreshing before API requests
+- Pre-emptive refresh 60 seconds before expiration
+- Token storage in JSON file
+
+#### Planned Enhancements (To be implemented Day 8-9)
+1. **Background Token Refresh Process**
+   - Dedicated thread that runs continuously to monitor token status
+   - Periodic checking of token expiration (every 5 minutes)
+   - Automatic refresh of tokens that will expire within the next 10 minutes
+   - Notification system for refresh events and failures
+   - Logging of all token-related activities
+
+2. **Token Monitoring Dashboard**
+   - Web interface to show current token status
+   - Real-time countdown to expiration
+   - Manual refresh option
+   - Token history and audit log
+
+3. **Resilience Features**
+   - Retry mechanism for failed token refreshes
+   - Fallback authentication methods
+   - Graceful degradation when token refresh fails
+   - Automatic recovery procedures
+
+This enhancement will provide true background processing for OAuth tokens, eliminating the current limitation where refresh only happens during API calls. The system will proactively maintain fresh tokens regardless of API activity.
+
 ## Immediate Next Steps (Updated May 18, 2025)
 
 ### Day 3-4 (May 16-17, 2025): Project Setup & Environment Configuration - COMPLETED
@@ -197,6 +229,8 @@ This project involves developing a Microsoft Edge extension with a chatbot inter
    - Create Jira service class using Atlassian Python API
    - Create data models for Jira entities
    - Set up error handling and retry logic
+   - Implement true background token refresh process (dedicated thread)
+   - Add monitoring interface for OAuth token status
 2. Develop LLM integration with OpenRouter
    - Create prompt templates for different use cases
    - Establish API connection with OpenRouter
