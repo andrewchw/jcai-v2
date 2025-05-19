@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth Token Monitoring Dashboard</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            background-color: #0078d7;
+            color: white;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .card {
+            background-color: white;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .status-active {
+            color: #107c10;
+            font-weight: bold;
+        }
+        .status-warning {
+            color: #ff8c00;
+            font-weight: bold;
+        }
+        .status-error {
+            color: #d13438;
+            font-weight: bold;
+        }
+        .status-refreshing {
+            color: #0078d7;
+            font-weight: bold;
+        }
+        .event-list {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 10px;
+        }
+        .event-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .event-item:last-child {
+            border-bottom: none;
+        }
+        .event-refresh {
+            background-color: #dff6dd;
+        }
+        .event-error {
+            background-color: #fde7e9;
+        }
+        .event-warning {
+            background-color: #fff4ce;
+        }
+        .event-info {
+            background-color: #f0f8ff;
+        }
+        button {
+            background-color: #0078d7;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #106ebe;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .countdown {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 10px 0;
+            font-family: monospace;
+        }
+        .refresh-button {
+            margin-top: 15px;
+        }
+        .stats {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .stat-item {
+            flex: 1;
+            min-width: 200px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+            border-left: 5px solid #0078d7;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .stat-item h3 {
+            margin-top: 0;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            font-style: italic;
+            color: #666;
+        }        .refresh-time {
+            text-align: right;
+            color: #666;
+            font-size: 12px;
+            margin-bottom: 10px;
+        }
+        .jira-section {
+            margin-top: 30px;
+        }
+        .projects-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .project-card {
+            background-color: white;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            padding: 15px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .project-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+        .project-card.selected {
+            border: 2px solid #0078d7;
+            box-shadow: 0 0 0 1px #0078d7;
+        }
+        .project-card h3 {
+            margin-top: 0;
+            color: #0078d7;
+        }
+        .project-card .project-key {
+            font-size: 14px;
+            color: #666;
+        }
+        .issues-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        .issues-table th, .issues-table td {
+            text-align: left;
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+        .issues-table th {
+            background-color: #f0f0f0;
+        }
+        .issues-table tbody tr:hover {
+            background-color: #f9f9f9;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status-todo {
+            background-color: #DEEBFF;
+            color: #0747A6;
+        }
+        .status-in-progress {
+            background-color: #E9F2E4;
+            color: #216E4E;
+        }
+        .status-done {
+            background-color: #DFE1E6;
+            color: #42526E;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #ddd;
+        }
+        .tab {
+            padding: 10px 15px;
+            cursor: pointer;
+        }
+        .tab.active {
+            border-bottom: 2px solid #0078d7;
+            color: #0078d7;
+            font-weight: bold;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>OAuth Token Monitoring Dashboard</h1>
+            <div>
+                <button id="refresh-dashboard">Refresh Dashboard</button>
+            </div>
+        </div>
+        
+        <div class="refresh-time">Last refreshed: <span id="last-refresh">Never</span></div>
+        
+        <div class="card">
+            <h2>Token Status</h2>
+            <div id="token-status">
+                <div class="loading">Loading token status...</div>
+            </div>
+            <div id="countdown" class="countdown"></div>
+            <button id="refresh-token" class="refresh-button">Force Token Refresh</button>
+        </div>
+        
+        <div class="card">
+            <h2>Token Stats</h2>
+            <div id="token-stats" class="stats">
+                <div class="loading">Loading token statistics...</div>
+            </div>
+        </div>
+          <div class="card">
+            <h2>Token Event History</h2>
+            <div id="token-events" class="event-list">
+                <div class="loading">Loading token events...</div>
+            </div>
+        </div>
+        
+        <!-- Jira Integration Section -->
+        <div class="jira-section">
+            <div class="card">
+                <h2>Jira Integration Test</h2>
+                <p>This section tests the OAuth token connectivity to Jira Cloud by retrieving projects and issues.</p>
+                
+                <div class="tabs">
+                    <div class="tab active" data-tab="projects">Projects</div>
+                    <div class="tab" data-tab="issues">Issues</div>
+                </div>
+                
+                <!-- Projects Tab -->
+                <div id="projects-tab" class="tab-content active">
+                    <button id="load-projects">Load Jira Projects</button>
+                    <div id="projects-container" class="projects-grid">
+                        <div class="loading">Click "Load Jira Projects" to start...</div>
+                    </div>
+                </div>
+                
+                <!-- Issues Tab -->
+                <div id="issues-tab" class="tab-content">
+                    <div style="margin-bottom: 10px;">
+                        <label for="project-select">Select Project: </label>
+                        <select id="project-select">
+                            <option value="">-- All Issues --</option>
+                        </select>
+                        <button id="load-issues">Load Issues</button>
+                    </div>
+                    <div id="issues-container">
+                        <table id="issues-table" class="issues-table">
+                            <thead>
+                                <tr>
+                                    <th>Key</th>
+                                    <th>Summary</th>
+                                    <th>Status</th>
+                                    <th>Assignee</th>
+                                    <th>Updated</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="5">Select a project and click "Load Issues" to start...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Base API URL - adjust as needed for your environment
+        const API_BASE_URL = '/api/auth/oauth';
+        
+        // Function to format duration in a human-readable way
+        function formatDuration(seconds) {
+            if (seconds < 0) return 'Expired';
+            
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = Math.floor(seconds % 60);
+            
+            return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+        
+        // Function to update countdown
+        function updateCountdown(expiresInSeconds) {
+            const countdownElement = document.getElementById('countdown');
+            
+            if (!expiresInSeconds || expiresInSeconds <= 0) {
+                countdownElement.innerHTML = 'Token has expired';
+                countdownElement.className = 'countdown status-error';
+                return;
+            }
+            
+            let countdown = expiresInSeconds;
+            
+            // Clear any existing interval
+            if (window.countdownInterval) {
+                clearInterval(window.countdownInterval);
+            }
+            
+            // Update countdown immediately
+            countdownElement.innerHTML = `Token expires in: ${formatDuration(countdown)}`;
+            countdownElement.className = countdown < 600 ? 'countdown status-warning' : 'countdown status-active';
+            
+            // Set interval to update countdown every second
+            window.countdownInterval = setInterval(() => {
+                countdown--;
+                
+                if (countdown <= 0) {
+                    clearInterval(window.countdownInterval);
+                    countdownElement.innerHTML = 'Token has expired';
+                    countdownElement.className = 'countdown status-error';
+                } else {
+                    countdownElement.innerHTML = `Token expires in: ${formatDuration(countdown)}`;
+                    countdownElement.className = countdown < 600 ? 'countdown status-warning' : 'countdown status-active';
+                }
+            }, 1000);
+        }
+        
+        // Function to fetch and display token status
+        async function fetchTokenStatus() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/token/status`);
+                const data = await response.json();
+                
+                const statusElement = document.getElementById('token-status');
+                let statusHtml = '';
+                let statusClass = '';
+                
+                switch (data.status) {
+                    case 'active':
+                        statusClass = 'status-active';
+                        statusHtml = `<h3 class="${statusClass}">ACTIVE</h3>`;
+                        break;
+                    case 'expired':
+                        statusClass = 'status-error';
+                        statusHtml = `<h3 class="${statusClass}">EXPIRED</h3>`;
+                        break;
+                    case 'refreshing':
+                        statusClass = 'status-refreshing';
+                        statusHtml = `<h3 class="${statusClass}">REFRESHING</h3>`;
+                        break;
+                    case 'error':
+                        statusClass = 'status-error';
+                        statusHtml = `<h3 class="${statusClass}">ERROR</h3>`;
+                        break;
+                    default:
+                        statusClass = 'status-warning';
+                        statusHtml = `<h3 class="${statusClass}">UNKNOWN</h3>`;
+                }
+                
+                statusHtml += '<ul>';
+                if (data.expires_at) {
+                    statusHtml += `<li>Expires at: ${new Date(data.expires_at).toLocaleString()}</li>`;
+                }
+                if (data.last_refresh) {
+                    statusHtml += `<li>Last refreshed: ${new Date(data.last_refresh).toLocaleString()}</li>`;
+                }
+                if (data.next_scheduled_check) {
+                    statusHtml += `<li>Next check: ${new Date(data.next_scheduled_check).toLocaleString()}</li>`;
+                }
+                if (data.refresh_status) {
+                    statusHtml += `<li>Refresh status: ${data.refresh_status}</li>`;
+                }
+                if (data.message) {
+                    statusHtml += `<li>Message: ${data.message}</li>`;
+                }
+                statusHtml += '</ul>';
+                
+                statusElement.innerHTML = statusHtml;
+                
+                // Update countdown
+                updateCountdown(data.expires_in_seconds);
+                
+                // Update stats
+                const statsElement = document.getElementById('token-stats');
+                statsElement.innerHTML = `
+                    <div class="stat-item">
+                        <h3>Refreshes Attempted</h3>
+                        <p>${data.refreshes_attempted || 0}</p>
+                    </div>
+                    <div class="stat-item">
+                        <h3>Refreshes Succeeded</h3>
+                        <p>${data.refreshes_succeeded || 0}</p>
+                    </div>
+                    <div class="stat-item">
+                        <h3>Refreshes Failed</h3>
+                        <p>${data.refreshes_failed || 0}</p>
+                    </div>
+                `;
+                
+            } catch (error) {
+                console.error('Error fetching token status:', error);
+                document.getElementById('token-status').innerHTML = `
+                    <h3 class="status-error">ERROR</h3>
+                    <p>Failed to fetch token status: ${error.message}</p>
+                `;
+            }
+        }
+        
+        // Function to fetch and display token events
+        async function fetchTokenEvents() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/token/events`);
+                const events = await response.json();
+                
+                const eventsElement = document.getElementById('token-events');
+                
+                if (events.length === 0) {
+                    eventsElement.innerHTML = '<p>No token events recorded yet.</p>';
+                    return;
+                }
+                
+                let eventsHtml = '';
+                
+                events.forEach(event => {
+                    let eventClass = '';
+                    
+                    switch (event.event_type) {
+                        case 'refresh':
+                            eventClass = 'event-refresh';
+                            break;
+                        case 'error':
+                            eventClass = 'event-error';
+                            break;
+                        case 'warning':
+                            eventClass = 'event-warning';
+                            break;
+                        case 'info':
+                        default:
+                            eventClass = 'event-info';
+                    }
+                    
+                    eventsHtml += `
+                        <div class="event-item ${eventClass}">
+                            <strong>${new Date(event.timestamp).toLocaleString()}</strong> - 
+                            [${event.event_type.toUpperCase()}] ${event.message}
+                        </div>
+                    `;
+                });
+                
+                eventsElement.innerHTML = eventsHtml;
+                
+            } catch (error) {
+                console.error('Error fetching token events:', error);
+                document.getElementById('token-events').innerHTML = `
+                    <p>Failed to fetch token events: ${error.message}</p>
+                `;
+            }
+        }
+        
+        // Function to force token refresh
+        async function forceTokenRefresh() {
+            try {
+                const refreshButton = document.getElementById('refresh-token');
+                refreshButton.disabled = true;
+                refreshButton.textContent = 'Refreshing...';
+                
+                const response = await fetch(`${API_BASE_URL}/token/refresh`, {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                refreshButton.textContent = 'Force Token Refresh';
+                refreshButton.disabled = false;
+                
+                // Show status message
+                const statusElement = document.getElementById('token-status');
+                statusElement.innerHTML = `
+                    <h3 class="status-refreshing">REFRESHING</h3>
+                    <p>${result.message}</p>
+                `;
+                
+                // Refresh data after a delay
+                setTimeout(() => {
+                    refreshData();
+                }, 2000);
+                
+            } catch (error) {
+                console.error('Error refreshing token:', error);
+                
+                const refreshButton = document.getElementById('refresh-token');
+                refreshButton.textContent = 'Force Token Refresh';
+                refreshButton.disabled = false;
+                
+                const statusElement = document.getElementById('token-status');
+                statusElement.innerHTML = `
+                    <h3 class="status-error">ERROR</h3>
+                    <p>Failed to refresh token: ${error.message}</p>
+                `;
+            }
+        }
+        
+        // Function to refresh all dashboard data
+        function refreshData() {
+            fetchTokenStatus();
+            fetchTokenEvents();
+            
+            // Update last refresh time
+            document.getElementById('last-refresh').textContent = new Date().toLocaleString();
+        }
+        
+        // Set up event listeners
+        document.getElementById('refresh-dashboard').addEventListener('click', refreshData);
+        document.getElementById('refresh-token').addEventListener('click', forceTokenRefresh);
+          // Initial data load
+        refreshData();
+        
+        // Set up automatic refresh every 30 seconds
+        setInterval(refreshData, 30000);
+        
+        // Tab functionality
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                // Remove active class from all tabs
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                // Add active class to clicked tab
+                this.classList.add('active');
+                
+                // Hide all tab content
+                document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+                // Show content for this tab
+                const tabId = this.getAttribute('data-tab');
+                document.getElementById(`${tabId}-tab`).classList.add('active');
+            });
+        });
+        
+        // Load projects
+        document.getElementById('load-projects').addEventListener('click', async function() {
+            this.disabled = true;
+            this.textContent = 'Loading...';
+            
+            const projectsContainer = document.getElementById('projects-container');
+            projectsContainer.innerHTML = '<div class="loading">Loading projects...</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/jira/projects`);
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || 'Failed to fetch projects');
+                }
+                
+                const projects = await response.json();
+                
+                if (projects.length === 0) {
+                    projectsContainer.innerHTML = '<p>No projects found.</p>';
+                    return;
+                }
+                
+                // Clear any existing options except the placeholder
+                const projectSelect = document.getElementById('project-select');
+                while (projectSelect.options.length > 1) {
+                    projectSelect.remove(1);
+                }
+                
+                // Add new options
+                projects.forEach(project => {
+                    const option = document.createElement('option');
+                    option.value = project.key;
+                    option.text = `${project.name} (${project.key})`;
+                    projectSelect.appendChild(option);
+                });
+                
+                // Render projects grid
+                let projectsHtml = '';
+                projects.forEach(project => {
+                    projectsHtml += `
+                        <div class="project-card" data-project-key="${project.key}">
+                            <h3>${project.name}</h3>
+                            <div class="project-key">${project.key}</div>
+                        </div>
+                    `;
+                });
+                
+                projectsContainer.innerHTML = projectsHtml;
+                
+                // Add click handler for project cards
+                document.querySelectorAll('.project-card').forEach(card => {
+                    card.addEventListener('click', function() {
+                        const projectKey = this.getAttribute('data-project-key');
+                        
+                        // Update select dropdown
+                        document.getElementById('project-select').value = projectKey;
+                        
+                        // Switch to issues tab
+                        document.querySelector('.tab[data-tab="issues"]').click();
+                        
+                        // Load issues for this project
+                        document.getElementById('load-issues').click();
+                    });
+                });
+                
+            } catch (error) {
+                console.error('Error loading projects:', error);
+                projectsContainer.innerHTML = `<p style="color: red;">Error loading projects: ${error.message}</p>`;
+            } finally {
+                this.disabled = false;
+                this.textContent = 'Load Jira Projects';
+            }
+        });
+        
+        // Load issues
+        document.getElementById('load-issues').addEventListener('click', async function() {
+            this.disabled = true;
+            this.textContent = 'Loading...';
+            
+            const projectKey = document.getElementById('project-select').value;
+            const issuesTableBody = document.querySelector('#issues-table tbody');
+            
+            issuesTableBody.innerHTML = '<tr><td colspan="5">Loading issues...</td></tr>';
+            
+            try {
+                // Build URL with optional project key
+                let url = `${API_BASE_URL}/jira/issues`;
+                if (projectKey) {
+                    url += `?project_key=${projectKey}`;
+                }
+                
+                const response = await fetch(url);
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || 'Failed to fetch issues');
+                }
+                
+                const issues = await response.json();
+                
+                if (issues.length === 0) {
+                    issuesTableBody.innerHTML = '<tr><td colspan="5">No issues found.</td></tr>';
+                    return;
+                }
+                
+                // Render issues table
+                let issuesHtml = '';
+                issues.forEach(issue => {
+                    // Determine status class
+                    let statusClass = 'status-todo';
+                    const statusLower = (issue.status || '').toLowerCase();
+                    if (statusLower.includes('progress') || statusLower.includes('doing')) {
+                        statusClass = 'status-in-progress';
+                    } else if (statusLower.includes('done') || statusLower.includes('complete')) {
+                        statusClass = 'status-done';
+                    }
+                    
+                    // Format date if available
+                    let updatedDate = '';
+                    if (issue.updated) {
+                        updatedDate = new Date(issue.updated).toLocaleString();
+                    }
+                    
+                    issuesHtml += `
+                        <tr>
+                            <td><a href="#" title="Open in Jira">${issue.key}</a></td>
+                            <td>${issue.summary}</td>
+                            <td><span class="status-badge ${statusClass}">${issue.status || 'Unknown'}</span></td>
+                            <td>${issue.assignee || 'Unassigned'}</td>
+                            <td>${updatedDate}</td>
+                        </tr>
+                    `;
+                });
+                
+                issuesTableBody.innerHTML = issuesHtml;
+                
+            } catch (error) {
+                console.error('Error loading issues:', error);
+                issuesTableBody.innerHTML = `<tr><td colspan="5" style="color: red;">Error loading issues: ${error.message}</td></tr>`;
+            } finally {
+                this.disabled = false;
+                this.textContent = 'Load Issues';
+            }
+        });
+    </script>
+</body>
+</html>

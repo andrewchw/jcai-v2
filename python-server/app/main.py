@@ -1,5 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+import os
+import pathlib
 
 from app.api.routes import api_router
 from app.core.config import settings
@@ -29,8 +33,20 @@ async def root():
     return {
         "message": "Welcome to Jira Chatbot API",
         "docs_url": "/docs",
-        "openapi_url": "/openapi.json"
+        "openapi_url": "/openapi.json",
+        "token_dashboard_url": "/dashboard/token"
     }
+
+# Token dashboard endpoint
+@app.get("/dashboard/token")
+async def token_dashboard():
+    static_dir = pathlib.Path(__file__).parent / "static"
+    dashboard_file = static_dir / "token_dashboard.html"
+    
+    if not dashboard_file.exists():
+        return {"error": "Dashboard file not found"}
+        
+    return FileResponse(dashboard_file)
 
 # Health check endpoint
 @app.get("/health")
