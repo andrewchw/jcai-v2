@@ -181,8 +181,8 @@ class JiraService:
             return True
         except Exception as e:
             logger.error(f"Jira connection test failed: {str(e)}")
-            return False
-
+            return False    
+    
     def search_issues(
         self,
         jql: str,
@@ -203,13 +203,18 @@ class JiraService:
         if not self._client:
             raise ValueError("Jira client is not initialized")
         
-        try:
+        try:            
+            # If fields parameter is None, set default fields
             if not fields:
+                # Convert default fields to comma-separated string if needed
                 fields = "summary,status,assignee,priority,duedate,created,updated"
-            
-            # For Cloud instances, use enhanced_jql for better performance
-            result = self._client.enhanced_jql(
-                jql_str=jql,
+            elif isinstance(fields, list):
+                # Convert list of fields to comma-separated string
+                fields = ",".join(fields)
+                
+            # Use jql method for JQL queries
+            result = self._client.jql(
+                jql,
                 fields=fields,
                 limit=max_results
             )

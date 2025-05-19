@@ -67,6 +67,42 @@ To test OAuth 2.0 authentication:
 python jira_oauth2_example.py
 ```
 
+To test background token refresh functionality:
+
+```powershell
+python test_background_refresh.py
+```
+
+To test comprehensive Jira API integration:
+
+```powershell
+python test_jira_api.py
+```
+
+## Token Monitoring Dashboard
+
+The server includes a web-based dashboard for monitoring OAuth token status:
+
+1. Start the server:
+   ```powershell
+   python run.py
+   ```
+
+2. Open the dashboard in your browser:
+   ```
+   http://localhost:8000/dashboard/token
+   ```
+
+The dashboard provides:
+- Real-time token status monitoring
+- Token refresh statistics
+- Event history display
+- Jira integration testing features:
+  - Project listing functionality
+  - Issue retrieval and display
+
+For more details, see `docs/TOKEN_DASHBOARD.md`.
+
 ## OAuth 2.0 Setup
 
 1. Go to [Atlassian Developer Console](https://developer.atlassian.com/console/myapps/)

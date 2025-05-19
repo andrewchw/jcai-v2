@@ -210,9 +210,10 @@ We're building a Microsoft Edge extension with a chatbot interface for managing 
 We've implemented OAuth 2.0 authentication for secure communication with Atlassian Jira Cloud APIs. This implementation:
 
 1. Follows the Authorization Code Grant flow
-2. Handles token refreshing automatically
+2. Handles token refreshing automatically via dedicated background thread
 3. Provides secure storage of access and refresh tokens
 4. Integrates with the Atlassian Python API
+5. Provides monitoring and management dashboard
 
 ### Setup Steps
 
@@ -242,24 +243,47 @@ We've implemented OAuth 2.0 authentication for secure communication with Atlassi
    - Click "Login" to initiate the OAuth flow
    - Grant permission when redirected to Atlassian
 
+4. **Test Background Token Refresh**
+   - Run the background refresh test script:
+     ```powershell
+     cd python-server
+     .\venv\Scripts\Activate.ps1
+     python test_background_refresh.py
+     ```
+
+5. **Access the Token Monitoring Dashboard**
+   - Start the server with `python run.py`
+   - Open `http://localhost:8000/dashboard/token` in your browser
+
 ### Implementation Details
 
-The OAuth 2.0 flow is implemented in several components:
+The OAuth 2.0 implementation includes several components:
 
-1. **JiraService Class** (`app/services/jira_service.py`)
-   - `set_oauth2_token()`: Sets the OAuth token and initializes the client
-   - `_initialize_client()`: Creates a client with OAuth credentials
-   - Token refresh handling is built into the service
+1. **OAuthTokenService** (`app/services/oauth_token_service.py`)
+   - Dedicated background thread for token monitoring
+   - Automatic refresh before token expiration
+   - Event notification system for token events
+   - Comprehensive logging and retry mechanisms
 
-2. **OAuth Models** (`app/models/jira.py`)
-   - `OAuthToken`: Pydantic model for OAuth token data
+2. **JiraService Integration** (`app/services/jira_service.py`)
+   - OAuth token management with cloud ID resolution
+   - Client initialization with token integration
+   - Cross-platform compatible API access
+   - Error handling and retry mechanisms
 
-3. **API Endpoints** (`app/api/endpoints/jira.py`)
-   - `/oauth/token`: Endpoint to set OAuth token
+3. **API Endpoints** (`app/api/endpoints/oauth.py`)
+   - Token status and management endpoints
+   - Jira project and issue retrieval endpoints
+   - Token event history endpoint
 
-4. **Example Script** (`jira_oauth2_example.py`)
-   - Complete implementation of OAuth flow
-   - Token storage and refresh handling
-   - Example API usage with OAuth authentication
+4. **Token Monitoring Dashboard** (`app/static/token_dashboard.html`)
+   - Real-time token status display
+   - Token refresh statistics
+   - Jira API testing interface
+   - Project and issue browser
 
-For detailed documentation, see `python-server/docs/OAUTH2.md`.
+For detailed documentation, see:
+- `python-server/docs/OAUTH_IMPLEMENTATION.md`
+- `python-server/docs/TOKEN_DASHBOARD.md`
+- `python-server/docs/OAUTH2.md`
+- `python-server/docs/REFRESH_TOKENS.md`
