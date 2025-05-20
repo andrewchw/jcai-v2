@@ -7,18 +7,18 @@ const elements = {
     // Tabs
     tabButtons: document.querySelectorAll('.tab-button'),
     tabContents: document.querySelectorAll('.tab-content'),
-    
+
     // Chat
     messagesContainer: document.getElementById('messages-container'),
     userInput: document.getElementById('user-input'),
     sendButton: document.getElementById('send-button'),
     clearButton: document.getElementById('clear-button'),
-    
+
     // Tasks
     projectFilter: document.getElementById('project-filter'),
     statusFilter: document.getElementById('status-filter'),
     tasksList: document.getElementById('tasks-list'),
-    
+
     // Settings
     serverUrl: document.getElementById('server-url'),
     oauthStatus: document.getElementById('oauth-status'),
@@ -26,7 +26,7 @@ const elements = {
     logoutButton: document.getElementById('logout-button'),
     enableNotifications: document.getElementById('enable-notifications'),
     notificationTime: document.getElementById('notification-time'),
-    
+
     // Status indicators
     statusIndicator: document.getElementById('status-indicator'),
     statusText: document.getElementById('status-text'),
@@ -50,17 +50,17 @@ const state = {
  */
 function initialize() {
     console.log('Initializing sidebar');
-    
+
     // Connect to background script
     port = chrome.runtime.connect({ name: 'sidebar' });
-    
+
     setupPortListeners();
     setupEventListeners();
     loadSettings();
-    
+
     // Display connection status
     updateConnectionStatus(false, 'Connecting...');
-    
+
     // Check connectivity to server
     checkServerConnectivity();
 }
@@ -70,25 +70,57 @@ function initialize() {
  */
 function setupPortListeners() {
     port.onMessage.addListener((message) => {
-        console.log('Received message:', message);
-        
-        switch (message.type) {
-            case 'auth-status':
-                handleAuthStatusUpdate(message.payload);
-                break;
-                
-            case 'token-status':
-                handleTokenStatusUpdate(message.payload);
-                break;
-                
-            case 'jira-projects':
-                handleProjectsUpdate(message.payload);
-                break;
-                
-            case 'jira-tasks':
-                handleTasksUpdate(message.payload);
-                break;
+        console.log('Received message from background:', message);
+
+        if (!message || !message.type) {
+            console.error('Received invalid message from background:', message);
+            return;
         }
+
+        try {
+            switch (message.type) {
+                case 'auth-status':
+                    handleAuthStatusUpdate(message.payload);
+                    break;
+
+                case 'token-status':
+                    handleTokenStatusUpdate(message.payload);
+                    break;
+
+                case 'jira-projects':
+                    handleProjectsUpdate(message.payload);
+                    break;
+
+                case 'jira-tasks':
+                    handleTasksUpdate(message.payload);
+                    break;
+
+                default:
+                    console.warn('Unhandled message type:', message.type);
+            }
+        } catch (error) {
+            console.error('Error handling message:', error, message);
+        }
+    });
+
+    // Handle port disconnection
+    port.onDisconnect.addListener(() => {
+        console.log('Disconnected from background script, attempting to reconnect...');
+
+        // Attempt to reconnect
+        setTimeout(() => {
+            try {
+                port = chrome.runtime.connect({ name: 'sidebar' });
+                setupPortListeners();
+                console.log('Reconnected to background script');
+
+                // Check token status after reconnection
+                port.postMessage({ type: 'check-token' });
+            } catch (error) {
+                console.error('Failed to reconnect to background script:', error);
+                updateConnectionStatus(false, 'Background connection failed');
+            }
+        }, 1000);
     });
 }
 
@@ -100,7 +132,7 @@ function setupEventListeners() {
     elements.tabButtons.forEach(button => {
         button.addEventListener('click', () => switchTab(button.id.replace('tab-', '')));
     });
-    
+
     // Chat input
     elements.userInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -108,18 +140,18 @@ function setupEventListeners() {
             sendMessage();
         }
     });
-    
+
     elements.sendButton.addEventListener('click', sendMessage);
     elements.clearButton.addEventListener('click', clearChat);
-    
+
     // Filter changes
     elements.projectFilter.addEventListener('change', loadTasks);
     elements.statusFilter.addEventListener('change', loadTasks);
-    
+
     // Login/Logout
     elements.loginButton.addEventListener('click', initiateLogin);
     elements.logoutButton.addEventListener('click', initiateLogout);
-    
+
     // Settings changes
     elements.serverUrl.addEventListener('change', saveSettings);
     elements.enableNotifications.addEventListener('change', saveSettings);
@@ -131,16 +163,16 @@ function setupEventListeners() {
  */
 async function loadSettings() {
     const settings = await chrome.storage.local.get(['serverUrl', 'enableNotifications', 'notificationTime']);
-    
+
     if (settings.serverUrl) {
         state.serverUrl = settings.serverUrl;
         elements.serverUrl.value = settings.serverUrl;
     }
-    
+
     if (settings.enableNotifications !== undefined) {
         elements.enableNotifications.checked = settings.enableNotifications;
     }
-    
+
     if (settings.notificationTime) {
         elements.notificationTime.value = settings.notificationTime;
     }
@@ -151,13 +183,13 @@ async function loadSettings() {
  */
 async function saveSettings() {
     state.serverUrl = elements.serverUrl.value;
-    
+
     await chrome.storage.local.set({
         serverUrl: elements.serverUrl.value,
         enableNotifications: elements.enableNotifications.checked,
         notificationTime: elements.notificationTime.value
     });
-    
+
     // Update connection if server URL changed
     checkServerConnectivity();
 }
@@ -168,19 +200,32 @@ async function saveSettings() {
 async function checkServerConnectivity() {
     try {
         updateConnectionStatus(false, 'Connecting...');
-        
-        const response = await fetch(`${state.serverUrl}/api/health`);
+
+        const response = await fetch(`${state.serverUrl}/api/health`, {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' },
+            cache: 'no-cache'
+        });
+
         if (!response.ok) throw new Error('Server error');
-        
+
         const data = await response.json();
         console.log('Server health check:', data);
-        
+
         // Update connection status
         updateConnectionStatus(true, 'Connected');
-        
-        // Check authentication status
-        port.postMessage({ type: 'check-token' });
-        
+
+        // Update auth status if we got it from health check
+        if (data.authenticated) {
+            console.log('Server reports authenticated session, updating UI');
+            handleAuthStatusUpdate({ isAuthenticated: true });
+        }
+
+        // Double check authentication status through background
+        setTimeout(() => {
+            port.postMessage({ type: 'check-token' });
+        }, 500);
+
     } catch (error) {
         console.error('Server connectivity error:', error);
         updateConnectionStatus(false, 'Connection failed');
@@ -192,10 +237,10 @@ async function checkServerConnectivity() {
  */
 function updateConnectionStatus(connected, message) {
     state.serverConnected = connected;
-    
-    elements.statusIndicator.className = 'status-indicator ' + 
+
+    elements.statusIndicator.className = 'status-indicator ' +
         (connected ? 'connected' : 'disconnected');
-    
+
     elements.statusText.textContent = message;
 }
 
@@ -203,18 +248,29 @@ function updateConnectionStatus(connected, message) {
  * Handle authentication status update
  */
 function handleAuthStatusUpdate(payload) {
+    console.log('Auth status update received:', payload);
+
+    // Validate payload
+    if (payload === undefined || payload.isAuthenticated === undefined) {
+        console.error('Invalid auth status payload:', payload);
+        return;
+    }
+
     state.isAuthenticated = payload.isAuthenticated;
-    
+
     // Update UI
-    elements.oauthStatus.innerHTML = state.isAuthenticated ? 
-        '<span style="color: var(--success-color);">Authenticated</span>' : 
+    elements.oauthStatus.innerHTML = state.isAuthenticated ?
+        '<span style="color: var(--success-color);">Authenticated</span>' :
         '<span>Not authenticated</span>';
-        
+
     elements.loginButton.disabled = state.isAuthenticated;
     elements.logoutButton.disabled = !state.isAuthenticated;
-    
+
+    console.log('Auth UI updated - isAuthenticated:', state.isAuthenticated);
+
     // If authenticated, load projects and check token status
     if (state.isAuthenticated) {
+        console.log('Requesting token status and project data');
         port.postMessage({ type: 'check-token' });
         port.postMessage({ type: 'get-jira-projects' });
     }
@@ -224,17 +280,33 @@ function handleAuthStatusUpdate(payload) {
  * Handle token status update
  */
 function handleTokenStatusUpdate(tokenData) {
-    if (!tokenData) return;
-    
+    console.log('Token status update received:', tokenData);
+
+    if (!tokenData) {
+        console.warn('Empty token data received');
+        elements.tokenStatus.textContent = 'No token data';
+        return;
+    }
+
     // Update token status in footer
     if (tokenData.valid) {
-        const expiresIn = Math.floor((tokenData.expiresAt - Date.now()) / 1000);
+        const expiresAt = tokenData.expiresAt || (Date.now() + 3600000); // Default to 1hr if missing
+        const expiresIn = Math.floor((expiresAt - Date.now()) / 1000);
+
+        if (expiresIn <= 0) {
+            elements.tokenStatus.textContent = 'Token expired';
+            console.warn('Token appears to be expired');
+            return;
+        }
+
         const minutes = Math.floor(expiresIn / 60);
         const seconds = expiresIn % 60;
-        
+
         elements.tokenStatus.textContent = `Token active - expires in ${minutes}m ${seconds}s`;
+        console.log(`Token active with ${minutes}m ${seconds}s remaining`);
     } else {
-        elements.tokenStatus.textContent = 'Token expired';
+        elements.tokenStatus.textContent = 'Token expired or invalid';
+        console.warn('Token reported as invalid');
     }
 }
 
@@ -243,17 +315,17 @@ function handleTokenStatusUpdate(tokenData) {
  */
 function handleProjectsUpdate(projects) {
     state.projects = projects;
-    
+
     // Update project filter
     elements.projectFilter.innerHTML = '<option value="all">All Projects</option>';
-    
+
     projects.forEach(project => {
         const option = document.createElement('option');
         option.value = project.key;
         option.textContent = project.name;
         elements.projectFilter.appendChild(option);
     });
-    
+
     // Load tasks with current filters
     loadTasks();
 }
@@ -263,18 +335,18 @@ function handleProjectsUpdate(projects) {
  */
 function loadTasks() {
     if (!state.isAuthenticated) return;
-    
+
     // Show loading
     elements.tasksList.innerHTML = '<div class="loading-indicator">Loading tasks...</div>';
-    
+
     // Get filter values
     const filters = {
         project: elements.projectFilter.value !== 'all' ? elements.projectFilter.value : null,
         status: elements.statusFilter.value !== 'all' ? elements.statusFilter.value : null
     };
-    
+
     // Request tasks from background
-    port.postMessage({ 
+    port.postMessage({
         type: 'get-jira-tasks',
         payload: filters
     });
@@ -285,15 +357,15 @@ function loadTasks() {
  */
 function handleTasksUpdate(tasks) {
     state.tasks = tasks;
-    
+
     // Update tasks list
     elements.tasksList.innerHTML = '';
-    
+
     if (tasks.length === 0) {
         elements.tasksList.innerHTML = '<div class="empty-state">No tasks found</div>';
         return;
     }
-    
+
     // Create task elements
     tasks.forEach(task => {
         const taskElement = document.createElement('div');
@@ -309,7 +381,7 @@ function handleTasksUpdate(tasks) {
                 ${task.dueDate ? `<span>Due: ${formatDate(task.dueDate)}</span>` : ''}
             </div>
         `;
-        
+
         elements.tasksList.appendChild(taskElement);
     });
 }
@@ -322,12 +394,12 @@ function switchTab(tabName) {
     elements.tabButtons.forEach(button => {
         button.classList.toggle('active', button.id === `tab-${tabName}`);
     });
-    
+
     // Show active tab content
     elements.tabContents.forEach(content => {
         content.classList.toggle('active', content.id === `${tabName}-container`);
     });
-    
+
     // Perform tab-specific actions
     if (tabName === 'tasks' && state.isAuthenticated) {
         loadTasks();
@@ -340,30 +412,30 @@ function switchTab(tabName) {
 function sendMessage() {
     const message = elements.userInput.value.trim();
     if (!message) return;
-    
+
     // Add message to chat
     addMessage(message, 'user');
-    
+
     // Clear input
     elements.userInput.value = '';
-    
+
     // Check if authenticated first
     if (!state.isAuthenticated) {
         addMessage('Please log in to JIRA first to use the chatbot features.', 'system');
         return;
     }
-    
+
     // Add typing indicator
     const typingIndicator = addMessage('Thinking...', 'system');
-    
+
     // TODO: Send message to backend for processing
     // This will be implemented when LLM integration is added
-    
+
     // For now, add a mock response after a delay
     setTimeout(() => {
         // Remove typing indicator
         elements.messagesContainer.removeChild(typingIndicator);
-        
+
         // Add mock response
         addMessage('This is a placeholder response. LLM integration will be implemented in the next phase.', 'bot');
     }, 1500);
@@ -378,12 +450,12 @@ function addMessage(content, type) {
     messageElement.innerHTML = `
         <div class="message-content">${content}</div>
     `;
-    
+
     elements.messagesContainer.appendChild(messageElement);
-    
+
     // Scroll to bottom
     elements.messagesContainer.scrollTop = elements.messagesContainer.scrollHeight;
-    
+
     return messageElement;
 }
 

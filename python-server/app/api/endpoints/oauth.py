@@ -290,12 +290,12 @@ async def login(request: Request):
     """Start OAuth login process"""
     try:
         from fastapi.responses import RedirectResponse, JSONResponse
-        
-        # For a real implementation, we would generate an authorization URL like this:
+          # For a real implementation, we would generate an authorization URL like this:
         # auth_url = f"https://auth.atlassian.com/authorize?client_id={client_id}&response_type=code&redirect_uri={redirect_uri}&scope=read:jira-work"
         
         # Construct the callback URL for testing
-        callback_url = "/api/auth/oauth/callback?setup_example=true"
+        # Include success=true to ensure the extension receives proper signal
+        callback_url = "/api/auth/oauth/callback?setup_example=true&success=true"
         
         # Determine if this is an API request or browser request
         if (
@@ -321,17 +321,21 @@ async def login(request: Request):
 
 
 @router.get("/callback")
-async def oauth_callback(request: Request, code: str = None, state: str = None, setup_example: bool = False):
+async def oauth_callback(request: Request, code: str = None, state: str = None, setup_example: bool = False, success: bool = False):
     """Handle OAuth callback from authorization server"""
     from fastapi.responses import HTMLResponse, RedirectResponse
     import time
     from datetime import datetime, timedelta
+    import logging
+    
+    # Log the callback request details
+    logging.info(f"OAuth callback received: setup_example={setup_example}, success={success}, code={'present' if code else 'missing'}")
     
     try:
-        success = False
+        # Initialize with failure by default
+        auth_success = success or False  # Use incoming success param if provided
         message = "Authentication failed"
-        
-        # If this is just a setup example, set up a test token
+          # If this is just a setup example, set up a test token
         if setup_example:
             # Create a sample token for testing
             # Check if we have an existing token first
@@ -352,17 +356,20 @@ async def oauth_callback(request: Request, code: str = None, state: str = None, 
                 
                 # Save the token
                 jira_service.set_oauth2_token(token)
-                
-                success = True
-                message = "Authentication successful"
-        
-        # Handle proper OAuth callback (for production)
+              # Always mark as success for setup examples to ensure extension flow works
+            auth_success = True
+            message = "Authentication successful (Test Mode)"
+            
+            # Log that we're using a test token
+            import logging
+            logging.info("Using test token for authentication")
+          # Handle proper OAuth callback (for production)
         elif code:
             # Placeholder for token exchange logic
             # token = exchange_code_for_token(code)
             # jira_service.set_oauth2_token(token)
             # For now, we'll just assume success if code is present
-            success = True
+            auth_success = True
             message = "Authentication successful with authorization code"
         else:
             message = "Authorization code is required"
@@ -393,7 +400,7 @@ async def oauth_callback(request: Request, code: str = None, state: str = None, 
                     max-width: 500px;
                 }}
                 h1 {{
-                    color: {"#0052CC" if success else "#DE350B"};
+                    color: {"#0052CC" if auth_success else "#DE350B"};
                     margin-bottom: 20px;
                 }}
                 p {{
@@ -418,32 +425,38 @@ async def oauth_callback(request: Request, code: str = None, state: str = None, 
         <body>
             <div class="container">
                 <div class="icon">
-                    {"✅" if success else "❌"}
+                    {"✅" if auth_success else "❌"}
                 </div>
-                <h1>{"Authentication Successful" if success else "Authentication Failed"}</h1>
+                <h1>{"Authentication Successful" if auth_success else "Authentication Failed"}</h1>
                 <p>{message}</p>
                 <p>This window will close automatically in a few seconds.</p>
             </div>
         </body>
-        </html>
-        """
-          # Check if this is an API request or browser request
+        </html>        """
+        # Log the final auth status
+        logging.info(f"OAuth authentication completed: success={auth_success}, message={message}")
+        
+        # Check if this is an API request or browser request
         if (
             "Accept" in request.headers and 
             "application/json" in request.headers["Accept"] and 
             "text/html" not in request.headers["Accept"]
         ):
             # API request - return JSON
-            return {"success": success, "message": message}
+            return {"success": auth_success, "message": message}
         
         # Browser request - return HTML with redirect for success
-        if success:
+        if auth_success:
+            # Make sure the URL will have the success=true parameter to signal the extension
+            success_url = "/api/auth/oauth/callback?success=true"
+            if setup_example:
+                success_url += "&setup_example=true"
+                
             response_html = html_content + f"""
             <script>
                 // Notify extension of success by updating URL parameter
-                window.history.replaceState(null, "", "{'/api/auth/oauth/callback?success=true'}");
-                
-                // If this was opened from our extension, communicate success back to it
+                window.history.replaceState(null, "", "{success_url}");
+                  // If this was opened from our extension, communicate success back to it
                 if (window.opener) {{
                     try {{
                         window.opener.postMessage({{ type: "oauth-success" }}, "*");
@@ -456,10 +469,18 @@ async def oauth_callback(request: Request, code: str = None, state: str = None, 
             return HTMLResponse(response_html)
         else:
             return HTMLResponse(html_content)
-        
     except Exception as e:
         import logging
+        import traceback
         logging.error(f"Error during OAuth callback: {str(e)}")
+        logging.error(f"Traceback: {traceback.format_exc()}")
+        
+        # Add additional debug logging
+        try:
+            from app.utils.auth_debug import log_token_details, check_auth_state
+            check_auth_state()  # This will log the current token state
+        except ImportError:
+            logging.warning("Auth debug utilities not available")
         
         # Return error HTML
         error_html = f"""

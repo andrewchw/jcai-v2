@@ -19,6 +19,7 @@ We're building a Microsoft Edge extension with a chatbot interface for managing 
 - Python 3.9+
 - Node.js 18+ (for extension development)
 - VS Code (recommended)
+- PowerShell (with ExecutionPolicy configured - see troubleshooting section)
 - Microsoft Edge (version 88+)
 - PowerShell 7.0+ (for automation scripts)
 
@@ -247,6 +248,26 @@ For detailed information, see `python-server/docs/TOKEN_DASHBOARD.md`
 
 ## Troubleshooting
 
+### Helper Scripts
+
+We've created several helper scripts to simplify development tasks:
+
+1. **jcai-tools.ps1** - A menu-driven tool for common tasks
+   - Run with: `.\jcai-tools.ps1`
+   - Provides access to all common operations
+
+2. **run_server_fixed.ps1** - Properly starts the Python server
+   - Run with: `.\run_server_fixed.ps1`
+   - Handles environment activation and directory switching
+
+3. **validate_environment.ps1** - Checks your development setup
+   - Run with: `.\validate_environment.ps1`
+   - Validates Python, Node.js, and other dependencies
+
+4. **run_oauth_troubleshooter.ps1** - Runs the OAuth troubleshooting tool
+   - Run with: `.\run_oauth_troubleshooter.ps1`
+   - Helps diagnose OAuth authentication issues
+
 ### Common Issues
 
 1. **Atlassian Python API Connection Problems**
@@ -260,11 +281,20 @@ For detailed information, see `python-server/docs/TOKEN_DASHBOARD.md`
    - Check if virtual environment is activated
    - Verify `.env` file has correct configuration
    - Ensure required ports are not already in use
+   - Use `.\validate_environment.ps1` to check environment setup
 
 3. **Edge Extension Issues**
    - Check browser console for JavaScript errors
    - Verify the extension is properly loaded in `edge://extensions/`
    - Ensure the manifest.json is valid
+
+4. **PowerShell Execution Policy Issues**
+   - If scripts can't run due to execution policy, use:
+     ```powershell
+     Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+     ```
+   - This sets the policy temporarily for the current terminal session
+   - Alternatively, use our helper scripts which include this command
 
 ## OAuth 2.0 Implementation
 

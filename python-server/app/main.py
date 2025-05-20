@@ -4,6 +4,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 import os
 import pathlib
+from datetime import datetime
+from datetime import datetime
 
 from app.api.routes import api_router
 from app.core.config import settings
@@ -44,6 +46,45 @@ app.add_middleware(
 
 # Include API router
 app.include_router(api_router, prefix="/api")
+
+# Health check endpoint
+@app.get("/api/health")
+async def health_check():
+    """Health check endpoint for the extension"""
+    is_authenticated = False
+    token_info = {"present": False}
+    debug_info = {}
+    
+    try:
+        from app.services.jira_service import jira_service
+        if hasattr(jira_service, 'get_oauth2_token'):
+            token = jira_service.get_oauth2_token()
+            is_authenticated = token is not None
+            token_info = {
+                "present": token is not None,
+                "type": "oauth2" if token else None
+            }
+            
+            # Add debug logging
+            try:
+                from app.utils.auth_debug import log_token_details
+                if token:
+                    log_token_details(token, "health_check")
+                    debug_info["token_checked"] = True
+            except ImportError:
+                print("Auth debug utilities not available")
+                
+    except Exception as e:
+        print(f"Error checking auth status: {str(e)}")
+        debug_info["error"] = str(e)
+        
+    return {
+        "status": "ok",
+        "authenticated": is_authenticated,
+        "token_info": token_info,
+        "debug": debug_info,
+        "timestamp": datetime.now().isoformat()
+    }
 
 # Root endpoint
 @app.get("/")
@@ -101,11 +142,3 @@ async def token_dashboard_alt():
             print(f"  {item}")
     
     return {"error": "Dashboard file not found in any location"}
-
-# Health check endpoint
-@app.get("/health")
-async def health_check():
-    return {
-        "status": "ok",
-        "api_version": "0.1.0"
-    }

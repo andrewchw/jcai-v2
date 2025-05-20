@@ -17,14 +17,14 @@ let tokenState = {
 // Initialize the extension
 async function initialize() {
     console.log('JIRA Chatbot Assistant background service worker initialized');
-    
+
     // Load token state from storage
     const storedState = await chrome.storage.local.get(['tokenState']);
     if (storedState.tokenState) {
         tokenState = storedState.tokenState;
         console.log('Loaded token state from storage:', tokenState.isAuthenticated ? 'Authenticated' : 'Not authenticated');
     }
-    
+
     // Start periodic token checking
     if (tokenState.isAuthenticated) {
         startTokenChecking();
@@ -44,34 +44,34 @@ async function initialize() {
  */
 function handleSidebarConnection(port) {
     console.log('Sidebar connected');
-    
+
     // Send initial token state
-    port.postMessage({ 
-        type: 'auth-status', 
+    port.postMessage({
+        type: 'auth-status',
         payload: {
             isAuthenticated: tokenState.isAuthenticated
         }
     });
-    
+
     // Listen for messages from sidebar
     port.onMessage.addListener(async (message) => {
         console.log('Received message from sidebar:', message);
-        
+
         switch (message.type) {
             case 'login':
                 initiateLogin();
                 break;
-                
+
             case 'logout':
                 await performLogout();
-                port.postMessage({ 
-                    type: 'auth-status', 
+                port.postMessage({
+                    type: 'auth-status',
                     payload: {
                         isAuthenticated: false
                     }
                 });
                 break;
-                
+
             case 'check-token':
                 const tokenStatus = await checkOAuthToken();
                 port.postMessage({
@@ -79,7 +79,7 @@ function handleSidebarConnection(port) {
                     payload: tokenStatus
                 });
                 break;
-                
+
             case 'get-jira-projects':
                 const projects = await fetchJiraProjects();
                 port.postMessage({
@@ -87,7 +87,7 @@ function handleSidebarConnection(port) {
                     payload: projects
                 });
                 break;
-                
+
             case 'get-jira-tasks':
                 const tasks = await fetchJiraTasks(message.payload);
                 port.postMessage({
@@ -97,7 +97,7 @@ function handleSidebarConnection(port) {
                 break;
         }
     });
-    
+
     // Handle disconnect
     port.onDisconnect.addListener(() => {
         console.log('Sidebar disconnected');
@@ -109,36 +109,39 @@ function handleSidebarConnection(port) {
  */
 function initiateLogin() {
     console.log('Initiating login process');
-    
+
     const authUrl = `${API_BASE_URL}/auth/oauth/login`;
-    
+
     chrome.tabs.create({ url: authUrl }, (tab) => {
         // Track this tab for the OAuth callback
         chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo, tab) {
             // Check if this is our auth tab and if it's on the callback URL
             if (tabId === tab.id && changeInfo.url && changeInfo.url.includes(`${API_BASE_URL}/auth/oauth/callback`)) {
                 console.log('OAuth callback detected:', changeInfo.url);
-                
+
                 // Extract success status from URL (e.g., ?success=true)
                 const url = new URL(changeInfo.url);
                 const success = url.searchParams.get('success') === 'true';
                 const isSetupExample = url.searchParams.get('setup_example') === 'true';
-                
                 // Only process complete auth flow (success=true), not initial redirect
                 if (success) {
                     console.log('Authentication successful');
                     chrome.tabs.onUpdated.removeListener(listener);
                     handleSuccessfulLogin();
-                    
+
                     // Close the auth tab after a short delay
                     setTimeout(() => {
                         chrome.tabs.remove(tabId);
                     }, 2000);
-                } else if (!isSetupExample) {
-                    // This is a failure callback, not just the initial setup
+                } else if (isSetupExample) {
+                    // This is the setup example flow, wait for the success parameter to be added
+                    console.log('Setup example flow detected, waiting for completion');
+                    // Don't remove the listener yet, as the auth page may redirect with success=true
+                } else {
+                    // This is a failure callback
                     console.error('Authentication failed');
                     chrome.tabs.onUpdated.removeListener(listener);
-                    
+
                     // Notify any open sidebars
                     chrome.runtime.sendMessage({
                         type: 'auth-failed',
@@ -146,14 +149,11 @@ function initiateLogin() {
                             message: 'Authentication failed. Please try again.'
                         }
                     });
-                    
+
                     // Close the auth tab
                     setTimeout(() => {
                         chrome.tabs.remove(tabId);
                     }, 2000);
-                } else {
-                    console.log('Setting up OAuth example, waiting for completion...');
-                    // Don't remove listener yet as we're waiting for the success parameter
                 }
             }
         });
@@ -166,28 +166,35 @@ function initiateLogin() {
 async function handleSuccessfulLogin() {
     // Get token status from API
     const tokenStatus = await checkOAuthToken();
-    
-    if (tokenStatus && (tokenStatus.valid || tokenStatus.status === "active")) {
-        tokenState = {
-            isAuthenticated: true,
-            tokenData: tokenStatus,
-            lastChecked: new Date().toISOString()
-        };
-        
-        // Save to storage
-        await chrome.storage.local.set({ tokenState });
-        
-        // Start periodic token checking
-        startTokenChecking();
-        
-        // Notify any open sidebars
-        chrome.runtime.sendMessage({
-            type: 'auth-status',
-            payload: {
-                isAuthenticated: true
-            }
-        });
-    }
+
+    // Always consider authenticated after successful login
+    const isActive = tokenStatus && (tokenStatus.valid || tokenStatus.status === "active");
+
+    tokenState = {
+        isAuthenticated: true,  // Always set to true on successful login
+        tokenData: tokenStatus || { status: "unknown" },
+        lastChecked: new Date().toISOString()
+    };
+
+    // Save to storage
+    await chrome.storage.local.set({ tokenState });
+
+    // Start periodic token checking
+    startTokenChecking();    // Notify all connected sidebars
+    chrome.runtime.sendMessage({
+        type: 'auth-status',
+        payload: {
+            isAuthenticated: true
+        }
+    });
+
+    // Also send token status
+    chrome.runtime.sendMessage({
+        type: 'token-status',
+        payload: tokenState.tokenData
+    });
+
+    console.log('Sent authentication success messages to sidebars');
 }
 
 /**
@@ -197,7 +204,7 @@ async function checkOAuthToken() {
     try {
         const response = await fetch(`${API_BASE_URL}/auth/oauth/token/status`);
         if (!response.ok) throw new Error('Failed to check token status');
-        
+
         const data = await response.json();
         console.log('Token status:', data);
         return data;
@@ -212,17 +219,17 @@ async function checkOAuthToken() {
  */
 function startTokenChecking() {
     console.log('Starting periodic token checking');
-    
+
     // Clear any existing interval
     if (window.tokenCheckIntervalId) {
         clearInterval(window.tokenCheckIntervalId);
     }
-    
+
     // Set new interval
     window.tokenCheckIntervalId = setInterval(async () => {
         console.log('Checking token status...');
         const tokenStatus = await checkOAuthToken();
-        
+
         if (tokenStatus && (tokenStatus.valid || tokenStatus.status === "active")) {
             // Update token state
             tokenState = {
@@ -230,10 +237,10 @@ function startTokenChecking() {
                 tokenData: tokenStatus,
                 lastChecked: new Date().toISOString()
             };
-            
+
             // Save to storage
             await chrome.storage.local.set({ tokenState });
-            
+
             // Notify any open sidebars
             chrome.runtime.sendMessage({
                 type: 'token-status',
@@ -254,23 +261,23 @@ async function performLogout() {
     try {
         // Call logout API
         await fetch(`${API_BASE_URL}/auth/oauth/logout`);
-        
+
         // Reset token state
         tokenState = {
             isAuthenticated: false,
             tokenData: null,
             lastChecked: null
         };
-        
+
         // Clear from storage
         await chrome.storage.local.set({ tokenState });
-        
+
         // Stop token checking
         if (window.tokenCheckIntervalId) {
             clearInterval(window.tokenCheckIntervalId);
             window.tokenCheckIntervalId = null;
         }
-        
+
         console.log('Logout successful');
         return true;
     } catch (error) {
@@ -286,7 +293,7 @@ async function fetchJiraProjects() {
     try {
         const response = await fetch(`${API_BASE_URL}/jira/projects`);
         if (!response.ok) throw new Error('Failed to fetch projects');
-        
+
         const data = await response.json();
         return data;
     } catch (error) {
@@ -301,14 +308,14 @@ async function fetchJiraProjects() {
 async function fetchJiraTasks(filters = {}) {
     try {
         const url = new URL(`${API_BASE_URL}/jira/issues`);
-        
+
         // Add filters to query params
         if (filters.project) url.searchParams.append('project', filters.project);
         if (filters.status) url.searchParams.append('status', filters.status);
-        
+
         const response = await fetch(url);
         if (!response.ok) throw new Error('Failed to fetch tasks');
-        
+
         const data = await response.json();
         return data;
     } catch (error) {
