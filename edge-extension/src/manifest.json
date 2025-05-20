@@ -1,0 +1,43 @@
+{
+  "name": "JIRA Chatbot Assistant",
+  "version": "0.1.0",
+  "description": "Microsoft Edge extension for managing JIRA action items with natural language",
+  "manifest_version": 3,
+  "author": "JCAI Team",
+  "action": {
+    "default_title": "JIRA Chatbot",
+    "default_icon": {
+      "16": "images/icon16.png",
+      "32": "images/icon32.png",
+      "48": "images/icon48.png",
+      "128": "images/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "images/icon16.png",
+    "32": "images/icon32.png",
+    "48": "images/icon48.png",
+    "128": "images/icon128.png"
+  },
+  "permissions": [
+    "sidePanel",
+    "storage",
+    "notifications"
+  ],
+  "host_permissions": [
+    "http://localhost:8000/*"
+  ],
+  "side_panel": {
+    "default_path": "html/sidebar.html"
+  },
+  "background": {
+    "service_worker": "js/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["js/content.js"]
+    }
+  ]
+}

@@ -308,6 +308,37 @@ class OAuthTokenService:
         # All retries failed
         return None
     
+    def invalidate_token(self) -> bool:
+        """Invalidate the current OAuth token
+        
+        This method will delete the stored token file and reset any related state.
+        Use this when logging out a user or when a token is known to be invalid.
+        
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            if os.path.exists(self.token_file):
+                with self._lock:
+                    # Remove the token file
+                    os.remove(self.token_file)
+                
+                logger.info(f"Token invalidated and removed from {self.token_file}")
+                self._notify_event("info", "Token invalidated successfully")
+                
+                # Reset relevant stats
+                self.stats["last_refresh"] = None
+                
+                return True
+            else:
+                logger.info(f"No token file found at {self.token_file}, nothing to invalidate")
+                return True
+                
+        except Exception as e:
+            logger.error(f"Failed to invalidate token: {str(e)}")
+            self._notify_event("error", f"Failed to invalidate token: {str(e)}")
+            return False
+    
     def _background_refresh_loop(self):
         """Background thread function to check and refresh token periodically"""
         logger.info("Token refresh background thread started")

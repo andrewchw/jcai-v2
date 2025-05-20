@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>JIRA Chatbot OAuth Test</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            padding: 40px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            max-width: 800px;
+            width: 100%;
+        }
+        h1 {
+            color: #0052CC;
+            margin-bottom: 20px;
+        }
+        button {
+            background-color: #0052CC;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-bottom: 20px;
+        }
+        button:hover {
+            background-color: #0747A6;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .success {
+            background-color: #E3FCEF;
+            color: #006644;
+        }
+        .error {
+            background-color: #FFEBE6;
+            color: #DE350B;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>JIRA Chatbot OAuth Test</h1>
+        
+        <button id="loginBtn">Login to JIRA</button>
+        <button id="statusBtn">Check Token Status</button>
+        <button id="logoutBtn">Logout</button>
+        
+        <div id="statusDisplay" class="status" style="display: none;"></div>
+        
+        <h2>Response:</h2>
+        <pre id="response">No response yet</pre>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:8000/api';
+          document.getElementById('loginBtn').addEventListener('click', async () => {
+            try {
+                // Request JSON response specifically
+                const response = await fetch(`${API_BASE_URL}/auth/oauth/login`, {
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                const data = await response.json();
+                
+                // Display response
+                document.getElementById('response').textContent = JSON.stringify(data, null, 2);
+                
+                // Open OAuth login window
+                if (data.redirect_url) {
+                    // Open a window and store the reference
+                    const authWindow = window.open(`${API_BASE_URL}${data.redirect_url.replace('/api', '')}`, 'oauth_window', 'width=600,height=700');
+                    
+                    // Listen for message from the popup window
+                    window.addEventListener('message', function messageHandler(event) {
+                        if (event.data && event.data.type === 'oauth-success') {
+                            console.log('OAuth success message received');
+                            
+                            // Remove the listener
+                            window.removeEventListener('message', messageHandler);
+                            
+                            // Check token status
+                            document.getElementById('statusBtn').click();
+                            
+                            // Update status display
+                            const statusDisplay = document.getElementById('statusDisplay');
+                            statusDisplay.style.display = 'block';
+                            statusDisplay.className = 'status success';
+                            statusDisplay.textContent = 'Authentication successful';
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('response').textContent = `Error: ${error.message}`;
+            }
+        });
+        
+        document.getElementById('statusBtn').addEventListener('click', async () => {
+            try {
+                const response = await fetch(`${API_BASE_URL}/auth/oauth/token/status`);
+                const data = await response.json();
+                
+                // Display response
+                document.getElementById('response').textContent = JSON.stringify(data, null, 2);
+                
+                // Update status display
+                const statusDisplay = document.getElementById('statusDisplay');
+                statusDisplay.style.display = 'block';
+                
+                if (data.status === 'active') {
+                    statusDisplay.className = 'status success';
+                    statusDisplay.textContent = `Token is active and expires in ${Math.floor(data.expires_in_seconds / 60)} minutes`;
+                } else {
+                    statusDisplay.className = 'status error';
+                    statusDisplay.textContent = data.message || 'Token is not valid';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('response').textContent = `Error: ${error.message}`;
+            }
+        });
+        
+        document.getElementById('logoutBtn').addEventListener('click', async () => {
+            try {
+                const response = await fetch(`${API_BASE_URL}/auth/oauth/logout`);
+                const data = await response.json();
+                
+                // Display response
+                document.getElementById('response').textContent = JSON.stringify(data, null, 2);
+                
+                // Update status display
+                const statusDisplay = document.getElementById('statusDisplay');
+                statusDisplay.style.display = 'block';
+                statusDisplay.className = 'status success';
+                statusDisplay.textContent = 'Successfully logged out';
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('response').textContent = `Error: ${error.message}`;
+            }
+        });
+    </script>
+</body>
+</html>

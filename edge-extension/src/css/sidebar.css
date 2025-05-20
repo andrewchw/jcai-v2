@@ -1,0 +1,355 @@
+/* Sidebar Styles */
+:root {
+    --primary-color: #0052CC;
+    --primary-hover: #0747A6;
+    --secondary-color: #F4F5F7;
+    --text-color: #172B4D;
+    --border-color: #DFE1E6;
+    --success-color: #36B37E;
+    --warning-color: #FFAB00;
+    --error-color: #FF5630;
+    --box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    --border-radius: 3px;
+    --transition: all 0.2s ease;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+}
+
+body {
+    background-color: #FFFFFF;
+    color: var(--text-color);
+    font-size: 14px;
+    line-height: 1.5;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.app-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    width: 100%;
+}
+
+/* Header Styles */
+.app-header {
+    padding: 12px 16px;
+    background-color: var(--primary-color);
+    color: white;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: var(--box-shadow);
+}
+
+.logo-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.logo {
+    width: 24px;
+    height: 24px;
+}
+
+.app-header h1 {
+    font-size: 16px;
+    font-weight: 500;
+}
+
+.connection-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+}
+
+.status-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #DFE1E6;
+}
+
+.status-indicator.connected {
+    background-color: var(--success-color);
+}
+
+.status-indicator.connecting {
+    background-color: var(--warning-color);
+}
+
+.status-indicator.disconnected {
+    background-color: var(--error-color);
+}
+
+/* Tab Navigation */
+.tabs {
+    display: flex;
+    background-color: #F4F5F7;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.tab-button {
+    flex: 1;
+    padding: 10px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    font-weight: 500;
+    color: #6B778C;
+    transition: var(--transition);
+}
+
+.tab-button:hover {
+    background-color: rgba(9, 30, 66, 0.04);
+}
+
+.tab-button.active {
+    color: var(--primary-color);
+    border-bottom: 2px solid var(--primary-color);
+}
+
+/* Main Content */
+.app-content {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+}
+
+.tab-content {
+    display: none;
+    height: 100%;
+    overflow: hidden;
+    flex-direction: column;
+}
+
+.tab-content.active {
+    display: flex;
+}
+
+/* Chat Container */
+.messages-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.message {
+    max-width: 80%;
+    padding: 10px 14px;
+    border-radius: var(--border-radius);
+    animation: fadeIn 0.3s ease;
+}
+
+.user-message {
+    align-self: flex-end;
+    background-color: var(--primary-color);
+    color: white;
+    border-radius: var(--border-radius) var(--border-radius) 0 var(--border-radius);
+}
+
+.bot-message {
+    align-self: flex-start;
+    background-color: var(--secondary-color);
+    border-radius: 0 var(--border-radius) var(--border-radius) var(--border-radius);
+}
+
+.system-message {
+    align-self: center;
+    background-color: #EAE6FF;
+    border-radius: var(--border-radius);
+    font-style: italic;
+    opacity: 0.9;
+    text-align: center;
+}
+
+/* Input Container */
+.input-container {
+    border-top: 1px solid var(--border-color);
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background-color: white;
+}
+
+textarea {
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    resize: none;
+    font-size: 14px;
+    width: 100%;
+}
+
+textarea:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(0, 82, 204, 0.2);
+}
+
+.button-row {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.action-button {
+    padding: 6px 14px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background-color: white;
+    cursor: pointer;
+    transition: var(--transition);
+    font-weight: 500;
+}
+
+.action-button:hover {
+    background-color: var(--secondary-color);
+}
+
+.action-button.primary {
+    background-color: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.action-button.primary:hover {
+    background-color: var(--primary-hover);
+}
+
+.action-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Tasks Container */
+.filter-bar {
+    padding: 12px 16px;
+    background-color: var(--secondary-color);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    gap: 8px;
+}
+
+select {
+    padding: 6px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background-color: white;
+}
+
+.tasks-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+}
+
+.loading-indicator {
+    text-align: center;
+    padding: 20px;
+    color: #6B778C;
+}
+
+/* Settings Container */
+.settings-container {
+    overflow-y: auto;
+    padding: 16px;
+}
+
+.settings-section {
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 16px;
+}
+
+.settings-section:last-child {
+    border-bottom: none;
+}
+
+.settings-section h2 {
+    font-size: 16px;
+    margin-bottom: 12px;
+    font-weight: 500;
+}
+
+.setting-item {
+    margin-bottom: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.setting-item.checkbox {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+}
+
+.setting-item input[type="text"] {
+    padding: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+}
+
+.oauth-section {
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+#oauth-status {
+    font-size: 12px;
+    color: #6B778C;
+}
+
+/* Footer */
+.app-footer {
+    padding: 8px 16px;
+    border-top: 1px solid var(--border-color);
+    font-size: 12px;
+    color: #6B778C;
+    text-align: center;
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Scrollbar Styles */
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1; 
+}
+ 
+::-webkit-scrollbar-thumb {
+    background: #C1C7D0; 
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #6B778C; 
+}

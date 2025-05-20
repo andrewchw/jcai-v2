@@ -20,6 +20,7 @@ We're building a Microsoft Edge extension with a chatbot interface for managing 
 - Node.js 18+ (for extension development)
 - VS Code (recommended)
 - Microsoft Edge (version 88+)
+- PowerShell 7.0+ (for automation scripts)
 
 ### Initial Setup
 
@@ -50,6 +51,12 @@ We're building a Microsoft Edge extension with a chatbot interface for managing 
    # Edit .env with your configuration
    ```
 
+4. **Start the server with convenience script**:
+   ```powershell
+   .\start-server.ps1
+   ```
+   This script activates the virtual environment and starts the FastAPI server.
+
 4. **Load Edge extension for development**:
    - Open Edge browser and navigate to `edge://extensions/`
    - Enable "Developer mode"
@@ -59,20 +66,37 @@ We're building a Microsoft Edge extension with a chatbot interface for managing 
 
 1. **Start Python FastAPI server**:
    ```powershell
+   .\start-server.ps1
+   ```
+   Or manually start it:
+   ```powershell
    cd python-server
    .\venv\Scripts\Activate.ps1
    python run.py
    ```
-   The API will be available at `http://localhost:8000/docs`
+   
+   The server includes comprehensive logging for OAuth token events in `oauth_token_service.log`.
+   The API will be available at:
+   - API Documentation: `http://localhost:8000/docs`
+   - Token Dashboard: `http://localhost:8000/dashboard/token`
 
 2. **Test the Edge extension**:
    The extension should be available in your Edge browser. Click the extension icon to open the sidebar.
 
 3. **Test Jira API Connection**:
+   Several test scripts are available to test different aspects of the API:
    ```powershell
    cd python-server
    .\venv\Scripts\Activate.ps1
+   
+   # Basic connectivity test
    python test_jira_connection.py
+   
+   # OAuth background refresh test
+   python test_background_refresh.py
+   
+   # Comprehensive Jira API test
+   python test_jira_api.py
    ```
 
 ## Development Workflow
@@ -89,6 +113,16 @@ We're building a Microsoft Edge extension with a chatbot interface for managing 
   ```powershell
   cd python-server
   python jira_oauth2_example.py
+  ```
+- To test background token refresh:
+  ```powershell
+  cd python-server
+  python test_background_refresh.py
+  ```
+- To check token status:
+  ```powershell
+  cd python-server
+  python check_oauth_token.py
   ```
 - Key features of Atlassian Python API:
   - Support for Jira Cloud and Server
@@ -142,14 +176,19 @@ We're building a Microsoft Edge extension with a chatbot interface for managing 
 
 ## Testing
 
-1. **Component Testing**
-   - Atlassian Python API integration: Use the provided test scripts
+1. **Component Testing**  - Atlassian Python API integration: Use the provided test scripts
      ```powershell
      # Test basic connectivity
      python python-server/test_jira_connection.py
      
      # Test OAuth configuration
-     python python-server/check_oauth.py
+     python python-server/check_oauth_token.py
+     
+     # Test background refresh
+     python python-server/test_background_refresh.py
+     
+     # Test token refresh
+     python python-server/refresh_and_check_token.py
      ```
    - Python server: Run unit tests
      ```powershell
@@ -166,8 +205,9 @@ We're building a Microsoft Edge extension with a chatbot interface for managing 
 
 3. **Integration Testing**
    - Verify end-to-end flow from UI to LLM to Jira and back
-   - Test error handling when services are unavailable
+   - Test error handling when services are unavailable 
    - Check authentication token refresh mechanisms
+   - Use the Token Dashboard to monitor OAuth status in real-time
 
 ## Deployment
 
@@ -183,6 +223,28 @@ We're building a Microsoft Edge extension with a chatbot interface for managing 
 - Deploy the Python server to a company intranet server
 - Ensure the Atlassian Python API is installed on the production server
 
+## Token Monitoring Dashboard
+
+The project includes a web-based dashboard for monitoring the status of OAuth tokens and testing Jira API integration.
+
+### Accessing the Dashboard
+
+The token dashboard is available at:
+```
+http://localhost:8000/dashboard/token
+```
+
+### Dashboard Features
+
+- Real-time token status monitoring with expiration countdown
+- Token refresh statistics and event log
+- Jira integration testing:
+  - Project listing functionality
+  - Issue retrieval and display
+  - Interactive project selection and issue viewing
+
+For detailed information, see `python-server/docs/TOKEN_DASHBOARD.md`
+
 ## Troubleshooting
 
 ### Common Issues
@@ -192,6 +254,7 @@ We're building a Microsoft Edge extension with a chatbot interface for managing 
    - Ensure OAuth setup has been completed if using OAuth
    - Check if Atlassian Python API is properly installed
    - Verify network connectivity to Jira Cloud
+   - Use the token dashboard to check token status
 
 2. **Python Server Issues**
    - Check if virtual environment is activated

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JIRA Chatbot Assistant</title>
+    <link rel="stylesheet" href="../css/sidebar.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="logo-container">
+                <img src="../images/icon48.png" alt="JIRA Chatbot" class="logo">
+                <h1>JIRA Chatbot</h1>
+            </div>
+            <div class="connection-status">
+                <span id="status-indicator" class="status-indicator"></span>
+                <span id="status-text">Disconnected</span>
+            </div>
+        </header>
+
+        <div class="tabs">
+            <button id="tab-chat" class="tab-button active">Chat</button>
+            <button id="tab-tasks" class="tab-button">Tasks</button>
+            <button id="tab-settings" class="tab-button">Settings</button>
+        </div>
+
+        <main class="app-content">
+            <div id="chat-container" class="tab-content active">
+                <div id="messages-container" class="messages-container">
+                    <div class="message system-message">
+                        <div class="message-content">
+                            Welcome to JIRA Chatbot Assistant. How can I help you today?
+                        </div>
+                    </div>
+                    <!-- Messages will be appended here by JavaScript -->
+                </div>
+                
+                <div class="input-container">
+                    <textarea 
+                        id="user-input" 
+                        placeholder="Ask about your JIRA tasks (e.g., 'Show my open tasks')..." 
+                        rows="2"
+                    ></textarea>
+                    <div class="button-row">
+                        <button id="clear-button" class="action-button">Clear</button>
+                        <button id="send-button" class="action-button primary">Send</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tasks-container" class="tab-content">
+                <div class="filter-bar">
+                    <select id="project-filter">
+                        <option value="all">All Projects</option>
+                        <!-- Projects will be loaded dynamically -->
+                    </select>
+                    <select id="status-filter">
+                        <option value="all">All Statuses</option>
+                        <option value="open">Open</option>
+                        <option value="in-progress">In Progress</option>
+                        <option value="done">Done</option>
+                    </select>
+                </div>
+                <div id="tasks-list" class="tasks-list">
+                    <div class="loading-indicator">Loading tasks...</div>
+                    <!-- Tasks will be loaded dynamically -->
+                </div>
+            </div>
+
+            <div id="settings-container" class="tab-content">
+                <div class="settings-section">
+                    <h2>Connection</h2>
+                    <div class="setting-item">
+                        <label for="server-url">Server URL</label>
+                        <input type="text" id="server-url" value="http://localhost:8000">
+                    </div>
+                    <div class="oauth-section">
+                        <div id="oauth-status">
+                            <span>Not authenticated</span>
+                        </div>
+                        <button id="login-button" class="action-button primary">Login to JIRA</button>
+                        <button id="logout-button" class="action-button" disabled>Logout</button>
+                    </div>
+                </div>
+                <div class="settings-section">
+                    <h2>Notifications</h2>
+                    <div class="setting-item checkbox">
+                        <input type="checkbox" id="enable-notifications" checked>
+                        <label for="enable-notifications">Enable notifications for due tasks</label>
+                    </div>
+                    <div class="setting-item">
+                        <label for="notification-time">Notification time before due date</label>
+                        <select id="notification-time">
+                            <option value="15">15 minutes</option>
+                            <option value="30">30 minutes</option>
+                            <option value="60" selected>1 hour</option>
+                            <option value="120">2 hours</option>
+                            <option value="1440">1 day</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="settings-section">
+                    <h2>About</h2>
+                    <p>JIRA Chatbot Assistant v0.1.0</p>
+                    <p>© 2025 JCAI Team</p>
+                </div>
+            </div>
+        </main>
+
+        <footer class="app-footer">
+            <div id="token-status"></div>
+        </footer>
+    </div>
+
+    <script src="../js/sidebar.js" type="module"></script>
+</body>
+</html>
