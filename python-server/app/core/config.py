@@ -15,12 +15,12 @@ class Settings(BaseModel):
     JIRA_URL: str = os.getenv("JIRA_URL", "")
     JIRA_USERNAME: str = os.getenv("JIRA_USERNAME", "")
     JIRA_API_TOKEN: str = os.getenv("JIRA_API_TOKEN", "")
-    DEFAULT_JIRA_PROJECT_KEY: str = os.getenv("DEFAULT_JIRA_PROJECT_KEY", "")
-    
-    # OAuth 2.0 settings for Jira
+    DEFAULT_JIRA_PROJECT_KEY: str = os.getenv("DEFAULT_JIRA_PROJECT_KEY", "")    # OAuth 2.0 settings for Jira
     JIRA_OAUTH_CLIENT_ID: str = os.getenv("JIRA_OAUTH_CLIENT_ID", "")
     JIRA_OAUTH_CLIENT_SECRET: str = os.getenv("JIRA_OAUTH_CLIENT_SECRET", "")
     JIRA_OAUTH_CALLBACK_URL: str = os.getenv("JIRA_OAUTH_CALLBACK_URL", "")
+    ATLASSIAN_OAUTH_CLOUD_ID: str = os.getenv("ATLASSIAN_OAUTH_CLOUD_ID", "")
+    ATLASSIAN_OAUTH_SCOPE: str = os.getenv("ATLASSIAN_OAUTH_SCOPE", "read:jira-work write:jira-work offline_access")
     
     # Database settings
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./app.db")

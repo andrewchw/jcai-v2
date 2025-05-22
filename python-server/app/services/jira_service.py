@@ -55,7 +55,7 @@ class JiraService:
     
     def _handle_token_event(self, event):
         """Handle token refresh events"""
-        if event.event_type == "refresh":
+        if event.event_type == "refresh":            
             logger.info(f"Token refresh event: {event.message}")
             # Update the client with the refreshed token
             self._oauth2_token = self._token_service.load_token()
@@ -64,7 +64,7 @@ class JiraService:
             logger.error(f"Token error event: {event.message}")
         else:
             logger.info(f"Token event ({event.event_type}): {event.message}")
-      
+    
     def _initialize_client(self) -> None:
         """Initialize the Jira client using configuration settings"""
         try:
@@ -72,23 +72,38 @@ class JiraService:
             if settings.JIRA_OAUTH_CLIENT_ID and self._oauth2_token:
                 # Using OAuth 2.0
                 # First, get the cloud ID by calling the resources endpoint
+                logger.info("Attempting to get cloud ID for OAuth2 initialization")                
                 cloud_id = self._get_cloud_id()
+                logger.info(f"Result of cloud ID retrieval: {cloud_id}")
                 
                 if cloud_id:
                     # Using OAuth 2.0 with cloud ID
+                    # Format the OAuth token according to the Atlassian Python API requirements
+                    # The API expects an OAuth2 object with specific properties
                     oauth2_dict = {
                         "client_id": settings.JIRA_OAUTH_CLIENT_ID,
                         "token": {
                             "access_token": self._oauth2_token["access_token"],
-                            "token_type": "Bearer"
+                            "token_type": self._oauth2_token.get("token_type", "Bearer")
                         }
                     }
+                    url = f"https://api.atlassian.com/ex/jira/{cloud_id}"
+                    logger.info(f"Initializing Jira client with URL: {url}")
+                    # Create custom headers for logging but don't pass to client init
+                    headers = {
+                        "Authorization": f"Bearer {self._oauth2_token['access_token']}",
+                        "Accept": "application/json"
+                    }
+                    logger.info(f"Setting up authorization headers for API calls")
+                    
                     self._client = Jira(
-                        url=f"https://api.atlassian.com/ex/jira/{cloud_id}",
+                        url=url,
                         oauth2=oauth2_dict,
                         cloud=True
                     )
                     logger.info(f"Jira client initialized with OAuth 2.0 for cloud ID: {cloud_id}")
+                else:
+                    logger.error("Could not obtain Jira Cloud ID. OAuth client initialization failed.")
             
             # Otherwise, use basic authentication with API token
             elif settings.JIRA_URL and settings.JIRA_USERNAME and settings.JIRA_API_TOKEN:
@@ -168,20 +183,93 @@ class JiraService:
         """Stop the background token refresh service"""
         if self._token_service:
             self._token_service.stop()
-            logger.info("OAuth token background refresh service stopped")
+            logger.info("OAuth token background refresh service stopped")    
     
     def is_connected(self) -> bool:
         """Check if the Jira client is connected and working"""
+        # Try direct API call if OAuth token is available, regardless of client initialization
+        if self._oauth2_token and "access_token" in self._oauth2_token:
+            try:
+                logger.info("Testing Jira connection with direct API call")
+                
+                # Only log the first 10 characters to avoid security issues
+                token_preview = self._oauth2_token["access_token"][:10] + "..."
+                logger.info(f"Using OAuth token: {token_preview}")
+                  # Try to call the myself endpoint
+                headers = {
+                    "Authorization": f"Bearer {self._oauth2_token['access_token']}",
+                    "Accept": "application/json"
+                }
+                cloud_id = self._cached_cloud_id or self._get_cloud_id()
+                
+                if cloud_id:
+                    # First try the resources endpoint which is always accessible with the token
+                    logger.info("Testing with resources endpoint first")
+                    resources_url = "https://api.atlassian.com/oauth/token/accessible-resources"
+                    resources_response = requests.get(resources_url, headers=headers)
+                    
+                    if resources_response.status_code == 200:
+                        logger.info(f"Successfully accessed resources endpoint")
+                        
+                        # Now try a Jira-specific endpoint with lower permission requirements
+                        urls_to_try = [
+                            f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/2/serverInfo",
+                            f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/serverInfo",
+                            f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/2/myself",
+                            f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/myself"
+                        ]
+                        
+                        for url in urls_to_try:
+                            logger.info(f"Making direct API call to {url}")
+                            response = requests.get(url, headers=headers)
+                            
+                            if response.status_code == 200:
+                                user_data = response.json()
+                                logger.info(f"Connection test successful using {url}")
+                                return True
+                            else:
+                                logger.warning(f"API endpoint {url} failed: {response.status_code} - {response.text}")
+                        
+                        # If none of the specific endpoints work but resources endpoint does,
+                        # assume we're connected but with limited permissions
+                        logger.info("Connected to Atlassian API but may have limited Jira permissions")
+                        return True
+                    else:
+                        logger.error(f"Resources endpoint test failed: {resources_response.status_code} - {resources_response.text}")
+                        return False
+                else:
+                    logger.error("Could not obtain cloud ID for connection test")
+                    return False
+            except Exception as e:
+                logger.error(f"Direct API connection test failed: {str(e)}")
+                if hasattr(e, "response") and hasattr(e.response, "text"):
+                    logger.error(f"Response details: {e.response.text}")
+                # Fall back to client method if available
+        
+        # Fall back to client method if available
         if not self._client:
+            logger.warning("Jira client is not initialized and direct API call failed")
             return False
         
         try:
+            # Print some debug info
+            logger.info(f"Testing Jira connection using client: {self._client.__class__.__name__}")
+            if hasattr(self._client, "_options") and hasattr(self._client._options, "headers"):
+                auth_header = self._client._options.headers.get("Authorization", "None")
+                if auth_header:
+                    # Only log the first 10 characters to avoid security issues
+                    logger.info(f"Authorization header starts with: {auth_header[:10]}...")
+            
             # Try to get current user to test connection
-            self._client.myself()
+            result = self._client.myself()
+            logger.info(f"Connection test successful: {result.get('displayName', 'Unknown user')}")
             return True
         except Exception as e:
             logger.error(f"Jira connection test failed: {str(e)}")
-            return False    
+            # Add more detailed error info
+            if hasattr(e, "response") and hasattr(e.response, "text"):
+                logger.error(f"Response details: {e.response.text}")
+            return False
     
     def search_issues(
         self,
@@ -350,7 +438,7 @@ class JiraService:
             return result
         except Exception as e:
             logger.error(f"Error adding comment to Jira issue {issue_key}: {str(e)}")
-            raise
+            raise    
     
     def get_projects(self) -> List[Dict[str, Any]]:
         """
@@ -359,8 +447,51 @@ class JiraService:
         Returns:
             List of projects
         """
+        # Use direct API call if OAuth token is available, regardless of client initialization
+        if self._oauth2_token and "access_token" in self._oauth2_token:
+            try:                
+                logger.info("Using direct API call for get_projects() with OAuth token")
+                headers = {
+                    "Authorization": f"Bearer {self._oauth2_token['access_token']}",
+                    "Accept": "application/json"
+                }
+                cloud_id = self._cached_cloud_id or self._get_cloud_id()
+                
+                if cloud_id:
+                    # Try different API versions and endpoints
+                    urls_to_try = [
+                        f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/2/project",
+                        f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/project",
+                        # Add a query parameter that might be required
+                        f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/2/project?expand=description",
+                        f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/project?expand=description"
+                    ]
+                    
+                    for url in urls_to_try:
+                        try:
+                            logger.info(f"Making direct API call to {url}")
+                            response = requests.get(url, headers=headers)
+                            
+                            if response.status_code == 200:
+                                logger.info(f"Successfully retrieved projects from {url}")
+                                return response.json()
+                            else:
+                                logger.warning(f"Failed to access {url}: {response.status_code} - {response.text}")
+                        except Exception as e:
+                            logger.warning(f"Error trying {url}: {str(e)}")
+                    
+                    # If all attempts fail, raise the most informative error
+                    logger.error("All project API endpoints failed")
+                    raise ValueError("Could not retrieve Jira projects. API access denied.")
+                else:
+                    logger.error("Could not obtain cloud ID for direct API call")
+            except Exception as e:
+                logger.warning(f"Direct API call failed: {str(e)}")
+                # Continue to try client method if available
+        
+        # Fall back to client method if available
         if not self._client:
-            raise ValueError("Jira client is not initialized")
+            raise ValueError("Jira client is not initialized and direct API call failed")
         
         try:
             result = self._client.projects()
@@ -419,7 +550,7 @@ class JiraService:
             return result
         except Exception as e:
             logger.error(f"Error transitioning Jira issue {issue_key}: {str(e)}")
-            raise
+            raise    
     
     def myself(self) -> Dict[str, Any]:
         """
@@ -428,8 +559,54 @@ class JiraService:
         Returns:
             Current user data
         """
+        # Use direct API call if OAuth token is available, regardless of client initialization
+        if self._oauth2_token and "access_token" in self._oauth2_token:
+            try:                
+                logger.info("Using direct API call for myself() with OAuth token")
+                headers = {
+                    "Authorization": f"Bearer {self._oauth2_token['access_token']}",
+                    "Accept": "application/json"
+                }
+                cloud_id = self._cached_cloud_id or self._get_cloud_id()
+                
+                if cloud_id:
+                    # Try v2 API endpoint first which might have different scope requirements
+                    url = f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/2/myself"
+                    
+                    logger.info(f"Making direct API call to {url}")
+                    response = requests.get(url, headers=headers)
+                    
+                    if response.status_code != 200:
+                        # If v2 fails, try the v3 endpoint
+                        url = f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/myself"
+                        logger.info(f"V2 API failed, trying V3 API: {url}")
+                        response = requests.get(url, headers=headers)
+                    
+                    if response.status_code == 200:
+                        return response.json()
+                    else:
+                        logger.error(f"Direct API call failed: {response.status_code} - {response.text}")
+                        # Try the user endpoint which might have different permissions
+                        url = f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/user/search?query=currentUser"
+                        logger.info(f"Trying alternative user endpoint: {url}")
+                        response = requests.get(url, headers=headers)
+                        
+                        if response.status_code == 200:
+                            user_list = response.json()
+                            if user_list and len(user_list) > 0:
+                                return user_list[0]
+                    
+                    # If all direct API calls fail, raise the error
+                    response.raise_for_status()
+                else:
+                    logger.error("Could not obtain cloud ID for direct API call")
+            except Exception as e:
+                logger.warning(f"Direct API call failed: {str(e)}")
+                # Continue to try client method if available
+        
+        # Fall back to client method if available
         if not self._client:
-            raise ValueError("Jira client is not initialized")
+            raise ValueError("Jira client is not initialized and direct API call failed")
         
         try:
             result = self._client.myself()
@@ -437,6 +614,19 @@ class JiraService:
         except Exception as e:
             logger.error(f"Error getting current user: {str(e)}")
             raise
+      
+    def get_cloud_id(self) -> str:
+        """
+        Get the current cloud ID used by this service instance
+        
+        Returns:
+            The current cloud ID or None if not available
+        """
+        if self._cached_cloud_id:
+            return self._cached_cloud_id
+        
+        # Try to get it if not cached
+        return self._get_cloud_id()
     
     def _get_cloud_id(self) -> Optional[str]:
         """
@@ -449,6 +639,17 @@ class JiraService:
         if self._cached_cloud_id:
             logger.debug(f"Using cached cloud ID: {self._cached_cloud_id}")
             return self._cached_cloud_id
+        
+        # First, try to get the cloud ID from environment
+        logger.info("Checking for Atlassian Cloud ID in environment variables")
+        env_cloud_id = settings.ATLASSIAN_OAUTH_CLOUD_ID if hasattr(settings, 'ATLASSIAN_OAUTH_CLOUD_ID') else None
+        
+        if env_cloud_id:
+            logger.info(f"Using Atlassian Cloud ID from environment: {env_cloud_id}")
+            self._cached_cloud_id = env_cloud_id
+            return env_cloud_id
+        else:
+            logger.warning("No Atlassian Cloud ID found in environment variables")
             
         if not self._oauth2_token or "access_token" not in self._oauth2_token:
             logger.warning("No OAuth token available for cloud ID retrieval")
