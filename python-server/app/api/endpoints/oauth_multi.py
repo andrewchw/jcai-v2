@@ -456,6 +456,8 @@ async def get_token_status(
         )
         
     except Exception as e:
+        logger.error(f"Exception type during get_token_status: {type(e)}")
+        logger.error(f"Exception args during get_token_status: {e.args}")
         logger.error(f"Error getting token status: {str(e)}")
         return TokenResponse(
             status="error",

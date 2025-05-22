@@ -30,7 +30,8 @@ const elements = {
     // Status indicators
     statusIndicator: document.getElementById('status-indicator'),
     statusText: document.getElementById('status-text'),
-    tokenStatus: document.getElementById('token-status')
+    tokenStatus: document.getElementById('token-status'),
+    userDisplay: document.getElementById('user-display') // Added for username
 };
 
 // Connection to background script
@@ -121,8 +122,8 @@ function setupPortListeners() {
     port.onMessage.addListener((message) => {
         console.log('Received message from background:', message);
 
-        if (!message || !message.type) {
-            console.error('Received invalid message from background:', message);
+        if (!message || typeof message.type !== 'string') { // Ensure type is a string
+            console.error('Received invalid or malformed message from background:', message);
             return;
         }
 
@@ -143,12 +144,16 @@ function setupPortListeners() {
                 case 'jira-tasks':
                     handleTasksUpdate(message.payload);
                     break;
-
+                case 'error': // Add a specific case for 'error' type messages
+                    console.error('Received error message from background:', message.payload);
+                    // Optionally, display a generic error to the user in the UI
+                    // elements.statusText.textContent = 'An error occurred. Check console.';
+                    break;
                 default:
-                    console.warn('Unhandled message type:', message.type);
+                    console.warn('Unhandled message type:', message.type, 'Full message:', message);
             }
-        } catch (error) {
-            console.error('Error handling message:', error, message);
+        } catch (error) { // This is line 149 from the stack trace
+            console.error('Error handling sidebar message (type:', message.type, '):', error, 'Full message:', message);
         }
     });
 
@@ -300,7 +305,7 @@ function handleAuthStatusUpdate(payload) {
     console.log('Auth status update received:', payload);
 
     // Validate payload
-    if (payload === undefined || payload.isAuthenticated === undefined) {
+    if (payload === undefined || typeof payload.isAuthenticated !== 'boolean') { // Check type of isAuthenticated
         console.error('Invalid auth status payload:', payload);
         return;
     }
@@ -310,32 +315,54 @@ function handleAuthStatusUpdate(payload) {
 
     // Update UI
     elements.oauthStatus.innerHTML = state.isAuthenticated ?
-        '<span style="color: var(--success-color);">Authenticated ✓</span>' :
-        '<span style="color: var(--error-color);">Not authenticated</span>';
+        '<span style=\"color: var(--success-color);\">Authenticated ✓</span>' :
+        '<span style=\"color: var(--error-color);\">Not authenticated</span>';
 
     elements.loginButton.disabled = state.isAuthenticated;
     elements.logoutButton.disabled = !state.isAuthenticated;
 
-    console.log('Auth UI updated - isAuthenticated:', state.isAuthenticated);
+    if (state.isAuthenticated) {
+        // User info might come from 'auth-status' or 'token-status' (via background.js)
+        // Let's ensure userDisplay is updated if userInfo is present in this payload
+        if (payload.userInfo && payload.userInfo.displayName) {
+            elements.userDisplay.textContent = `Logged in as: ${payload.userInfo.displayName}`;
+        } else {
+            // If displayName is not in this specific payload,
+            // it might arrive with 'token-status' or already be set.
+            // Avoid clearing it unnecessarily unless explicitly logging out.
+            // elements.userDisplay.textContent = elements.userDisplay.textContent || 'Authenticated'; // Keep existing or set generic
+        }
+    } else {
+        elements.userDisplay.textContent = ''; // Clear username on logout or auth failure
+        elements.tokenStatus.textContent = 'N/A'; // Clear token status as well
+    }
+
+    console.log('Auth UI updated - isAuthenticated:', state.isAuthenticated, 'Reason:', payload.reason || 'N/A');
 
     // Save the auth state to local storage as fallback
     chrome.storage.local.set({
         lastUIAuthState: {
             isAuthenticated: state.isAuthenticated,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            reason: payload.reason || null
         }
     });
 
     // If authenticated, load projects and check token status
     if (state.isAuthenticated) {
         console.log('Requesting token status and project data');
-        if (port) {
+        if (port && port.postMessage) { // Check port and postMessage existence
             port.postMessage({ type: 'check-token' });
-            port.postMessage({ type: 'get-jira-projects' });
+            port.postMessage({ type: 'get-jira-projects' }); // This should trigger 'jira-projects' response
+            // not call fetchJiraProjects
         } else {
-            console.warn('Cannot request data - port not connected');
-            connectToBackground();
+            console.warn('Cannot request data - port not connected or invalid');
+            connectToBackground(); // Attempt to reconnect
         }
+    } else {
+        // If not authenticated, clear projects and tasks
+        handleProjectsUpdate([]); // Clear projects dropdown
+        handleTasksUpdate([]);    // Clear tasks list
     }
 }
 
@@ -346,21 +373,29 @@ function handleTokenStatusUpdate(tokenData) {
     console.log('Token status update received:', tokenData);
 
     if (!tokenData) {
-        console.warn('Empty token data received');
+        console.warn('Empty token data received in handleTokenStatusUpdate');
         elements.tokenStatus.textContent = 'No token data';
+        elements.userDisplay.textContent = ''; // Clear username
+        // It's possible that an empty tokenData here should also trigger an auth state correction
+        if (state.isAuthenticated) {
+            console.warn('Token data is empty, but UI shows authenticated. Correcting UI state.');
+            handleAuthStatusUpdate({ isAuthenticated: false, reason: "Empty token data" });
+        }
         return;
     }
 
     // Check multiple indicators of validity
     const isValid = tokenData.valid === true ||
         tokenData.status === 'active' ||
-        (tokenData.expires_in_seconds && tokenData.expires_in_seconds > 0);
+        (typeof tokenData.expires_in_seconds === 'number' && tokenData.expires_in_seconds > 0);
 
     // Update authentication state if token is invalid
     if (!isValid && state.isAuthenticated) {
-        console.warn('Token is invalid but UI shows authenticated - correcting UI state');
-        handleAuthStatusUpdate({ isAuthenticated: false });
-    }    // Update token status in footer based on validity
+        console.warn('Token is invalid but UI shows authenticated - correcting UI state. TokenData:', tokenData);
+        handleAuthStatusUpdate({ isAuthenticated: false, reason: "Token invalid" });
+        // No return here, still update footer status to "Invalid token"
+    }
+    // Update token status in footer based on validity
     if (isValid) {
         // Calculate expiration time
         const expiresIn = tokenData.expires_in_seconds ||

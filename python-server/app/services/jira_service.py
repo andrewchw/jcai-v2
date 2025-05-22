@@ -17,13 +17,23 @@ RESOURCES_URL = "https://api.atlassian.com/oauth/token/accessible-resources"
 class JiraService:
     """Service for interacting with Jira Cloud using Atlassian Python API"""
     
-    def __init__(self):
+    def __init__(self, access_token: Optional[str] = None, user_id: Optional[str] = None, db_session: Optional[Any] = None): # Modified to accept access_token
         self._client = None
-        self._oauth2_token = None
-        self._token_service = None
+        self._oauth2_token = None # This will be set if access_token is provided
+        self._token_service = None # Original token service for non-user-specific calls
         self._cached_cloud_id = None
-        self._initialize_token_service()
-        self._initialize_client()
+        self.user_id = user_id # Store user_id if provided for multi-user context
+        self.db_session = db_session # Store db_session if provided
+
+        if access_token:
+            self._oauth2_token = {"access_token": access_token, "token_type": "Bearer"}
+            # If an access_token is given, we might not need the full background service,
+            # but we still need to initialize the client with this token.
+            self._initialize_client_with_token(access_token)
+        else:
+            # Original initialization if no specific token is passed
+            self._initialize_token_service()
+            self._initialize_client()
     
     def _initialize_token_service(self) -> None:
         """Initialize the OAuth token service for background refresh"""
@@ -122,6 +132,33 @@ class JiraService:
             logger.error(f"Error initializing Jira client: {str(e)}")
             self._client = None
       
+    def _initialize_client_with_token(self, access_token: str) -> None:
+        """Initialize the Jira client using a provided OAuth2 access token."""
+        try:
+            logger.info(f"Initializing Jira client with provided access token for user: {self.user_id or 'unknown'}")
+            cloud_id = self._get_cloud_id(access_token_override=access_token) # Pass token to _get_cloud_id
+            
+            if cloud_id:
+                oauth2_dict = {
+                    "client_id": settings.JIRA_OAUTH_CLIENT_ID, # Still need client_id for context
+                    "token": {
+                        "access_token": access_token,
+                        "token_type": "Bearer"
+                    }
+                }
+                url = f"https://api.atlassian.com/ex/jira/{cloud_id}"
+                self._client = Jira(
+                    url=url,
+                    oauth2=oauth2_dict,
+                    cloud=True
+                )
+                logger.info(f"Jira client initialized with provided OAuth 2.0 token for cloud ID: {cloud_id}")
+            else:
+                logger.error(f"Could not obtain Jira Cloud ID with provided token. Client initialization failed for user: {self.user_id or 'unknown'}.")
+        except Exception as e:
+            logger.error(f"Error initializing Jira client with provided token for user {self.user_id or 'unknown'}: {str(e)}")
+            self._client = None
+    
     def set_oauth2_token(self, token: Dict[str, str]) -> None:
         """
         Set the OAuth2 token and reinitialize the client
@@ -628,69 +665,129 @@ class JiraService:
         # Try to get it if not cached
         return self._get_cloud_id()
     
-    def _get_cloud_id(self) -> Optional[str]:
+    def _get_cloud_id(self, access_token_override: Optional[str] = None) -> Optional[str]:
         """
-        Get the Jira Cloud ID using the access token
-        
-        Returns:
-            Cloud ID string or None if not available
+        Get the Jira Cloud ID.
+        Uses the instance's _oauth2_token by default, or access_token_override if provided.
         """
-        # Return cached cloud ID if available
         if self._cached_cloud_id:
-            logger.debug(f"Using cached cloud ID: {self._cached_cloud_id}")
             return self._cached_cloud_id
-        
-        # First, try to get the cloud ID from environment
-        logger.info("Checking for Atlassian Cloud ID in environment variables")
-        env_cloud_id = settings.ATLASSIAN_OAUTH_CLOUD_ID if hasattr(settings, 'ATLASSIAN_OAUTH_CLOUD_ID') else None
-        
-        if env_cloud_id:
-            logger.info(f"Using Atlassian Cloud ID from environment: {env_cloud_id}")
-            self._cached_cloud_id = env_cloud_id
-            return env_cloud_id
-        else:
-            logger.warning("No Atlassian Cloud ID found in environment variables")
-            
-        if not self._oauth2_token or "access_token" not in self._oauth2_token:
-            logger.warning("No OAuth token available for cloud ID retrieval")
+
+        token_to_use = None
+        if access_token_override:
+            token_to_use = access_token_override
+        elif self._oauth2_token and "access_token" in self._oauth2_token:
+            token_to_use = self._oauth2_token["access_token"]
+
+        if not token_to_use:
+            logger.warning("No access token available to fetch cloud ID.")
             return None
-        
+
         try:
             headers = {
-                "Authorization": f"Bearer {self._oauth2_token['access_token']}",
+                "Authorization": f"Bearer {token_to_use}",
                 "Accept": "application/json"
             }
-            
-            logger.info("Retrieving Jira Cloud ID from accessible resources...")
             response = requests.get(RESOURCES_URL, headers=headers)
-            response.raise_for_status()
+            response.raise_for_status()  # Raise an exception for HTTP errors
+            
             resources = response.json()
-            
-            if not resources:
-                logger.warning("No accessible Jira resources found")
+            if resources and isinstance(resources, list) and len(resources) > 0:
+                # Assuming the first resource is the correct one
+                self._cached_cloud_id = resources[0]["id"]
+                logger.info(f"Retrieved cloud ID: {self._cached_cloud_id}")
+                return self._cached_cloud_id
+            else:
+                logger.warning(f"No accessible resources found or unexpected format: {resources}")
                 return None
-            
-            # Use the first cloud ID (most common scenario)
-            self._cached_cloud_id = resources[0]["id"]
-            site_name = resources[0].get("name", "Unknown Site")
-            logger.info(f"Found Jira Cloud site: {site_name} (ID: {self._cached_cloud_id})")
-            return self._cached_cloud_id
-            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error fetching accessible resources: {str(e)}")
+            if e.response is not None:
+                logger.error(f"Response status: {e.response.status_code}, body: {e.response.text}")
+            return None
         except Exception as e:
-            logger.error(f"Error retrieving Jira Cloud ID: {str(e)}")
+            logger.error(f"Unexpected error fetching cloud ID: {str(e)}")
             return None
     
-    def reset_client(self) -> None:
+    def get_current_user_details(self, access_token: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """
-        Reset the Jira client and all cached information
-        Use this when changing authentication methods or when connection issues occur
+        Get details for the current authenticated user using /rest/api/3/myself.
+        If access_token is provided, it uses that token for the request.
+        Otherwise, it uses the client initialized with the service-level token.
         """
-        self._client = None
-        self._cached_cloud_id = None
-        logger.info("Jira client has been reset")
-        # Reinitialize with current settings
-        self._initialize_client()
+        logger.info(f"Attempting to fetch current user details. Provided token: {'Yes' if access_token else 'No'}")
 
+        client_to_use = self._client
+        token_for_direct_call = None
+
+        if access_token:
+            # If a specific access token is provided, we might need to make a direct request
+            # or re-initialize a temporary client if the main one is for a different context.
+            # For simplicity, let's try a direct request first.
+            token_for_direct_call = access_token
+            logger.info(f"Using provided access token for get_current_user_details for user: {self.user_id or 'profiling call'}")
+        elif self._oauth2_token and "access_token" in self._oauth2_token:
+            token_for_direct_call = self._oauth2_token["access_token"]
+            logger.info(f"Using service-level access token for get_current_user_details.")
+        
+        if token_for_direct_call:
+            try:
+                cloud_id = self._get_cloud_id(access_token_override=token_for_direct_call)
+                if not cloud_id:
+                    logger.error("Cannot get user details: Cloud ID not found.")
+                    return None
+
+                myself_url = f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/myself"
+                headers = {
+                    "Authorization": f"Bearer {token_for_direct_call}",
+                    "Accept": "application/json"
+                }
+                response = requests.get(myself_url, headers=headers)
+                response.raise_for_status() # Raise an HTTPError for bad responses (4xx or 5xx)
+                user_details = response.json()
+                logger.info(f"Successfully fetched user details via direct call: {user_details.get('displayName')}")
+                return user_details
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Error fetching user details via direct API call: {str(e)}")
+                if e.response is not None:
+                    logger.error(f"Response status: {e.response.status_code}, body: {e.response.text}")
+                # Fallback to client method if it exists and might be configured differently
+                if client_to_use and not access_token: # Only fallback if not using a specific token
+                    logger.info("Falling back to client.myself() method")
+                else:
+                    return None # If specific token failed, don't use potentially wrong client
+            except Exception as e:
+                logger.error(f"Unexpected error during direct API call for user details: {str(e)}")
+                return None
+
+        # Fallback or default path: use the initialized client
+        if not client_to_use:
+            logger.warning("Jira client not initialized. Cannot fetch user details.")
+            # If an access_token was provided but client init failed, this is the end of the road.
+            if access_token:
+                 logger.error("Client initialization with provided access_token failed earlier.")
+                 return None
+            # If no access_token was provided and client is None, it means service-level init failed.
+            # Attempt to re-initialize the main client if it's not a user-specific call.
+            logger.warning("Attempting to re-initialize service-level Jira client.")
+            self._initialize_client() # Try to re-init the main client
+            client_to_use = self._client
+            if not client_to_use:
+                logger.error("Re-initialization of service-level Jira client failed.")
+                return None
+
+
+        try:
+            logger.info(f"Using Jira client instance to call myself() for user: {self.user_id or 'service-level'}")
+            user_details = client_to_use.myself()
+            logger.info(f"Successfully fetched user details via client.myself(): {user_details.get('displayName')}")
+            return user_details
+        except ApiError as e:
+            logger.error(f"Jira API Error fetching user details with client.myself(): {e.response.status_code} - {e.response.text}")
+            return None
+        except Exception as e:
+            logger.error(f"Generic error fetching user details with client.myself(): {str(e)}")
+            return None
 
 # Create a singleton instance
 jira_service = JiraService()

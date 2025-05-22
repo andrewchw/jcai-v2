@@ -15,7 +15,8 @@ let tokenState = {
     isAuthenticated: false,
     tokenData: null,
     lastChecked: null,
-    userId: USER_ID
+    userId: USER_ID,
+    userInfo: null // Added to store user information
 };
 
 // Initialize the extension
@@ -70,7 +71,8 @@ function handleSidebarConnection(port) {
         port.postMessage({
             type: 'auth-status',
             payload: {
-                isAuthenticated: tokenState.isAuthenticated
+                isAuthenticated: tokenState.isAuthenticated,
+                userInfo: tokenState.userInfo // Send user info
             }
         });
 
@@ -78,7 +80,7 @@ function handleSidebarConnection(port) {
         if (tokenState.tokenData) {
             port.postMessage({
                 type: 'token-status',
-                payload: tokenState.tokenData
+                payload: tokenState.tokenData // This might also contain user info
             });
         }
 
@@ -102,13 +104,14 @@ function handleSidebarConnection(port) {
                     port.postMessage({
                         type: 'auth-status',
                         payload: {
-                            isAuthenticated: false
+                            isAuthenticated: false,
+                            userInfo: null // Clear user info on logout
                         }
                     });
                     break;
 
                 case 'check-token':
-                    const tokenStatus = await checkOAuthToken();
+                    const tokenStatus = await checkOAuthToken(); // This function will be updated to fetch/include user info
                     port.postMessage({
                         type: 'token-status',
                         payload: tokenStatus || { valid: false, status: "unknown" }
@@ -310,7 +313,6 @@ async function handleSuccessfulLogin() {
     // Log the current state for debugging
     console.log('Handling successful login with user ID:', tokenState.userId);
 
-    // Store the current user ID first to ensure we don't lose it
     const currentUserId = tokenState.userId || USER_ID;
 
     // Ensure we have a valid user ID
@@ -322,55 +324,83 @@ async function handleSuccessfulLogin() {
     }
 
     // We've already set isAuthenticated=true in the callback for immediate UI feedback
-    // so no need to update it here again, but we'll ensure storage is updated
+    tokenState.isAuthenticated = true;
 
-    // Start periodic token checking right away to get token info quickly
-    startTokenChecking();
+    // 1. Fetch user information (especially displayName)
+    // This is the primary source for the user's display name.
+    let fetchedUserInfo = await fetchUserInfo(currentUserId);
 
-    console.log('Immediately requesting token status to update UI quickly...');
+    // 2. Check/refresh OAuth token details (like expiry, scope, etc.)
+    // Pass forceCheck true to ensure we get fresh data after login.
+    // The updated checkOAuthToken will preserve displayName if the /token/status response doesn't have it.
+    const tokenStatus = await checkOAuthToken({ forceCheck: true });
 
-    // Now check the token with the confirmed user ID to get complete token info
-    const tokenStatus = await checkOAuthToken();
+    // 3. Consolidate userInfo
+    // Prioritize userInfo with displayName from fetchUserInfo.
+    // If fetchUserInfo failed or didn't return displayName,
+    // and if tokenStatus has a 'user' object, use that as a fallback.
+    // Otherwise, userInfo remains null.
+    if (fetchedUserInfo && fetchedUserInfo.displayName) {
+        tokenState.userInfo = fetchedUserInfo;
+    } else if (tokenStatus && tokenStatus.user && tokenStatus.user.displayName) {
+        // If token/status unexpectedly provides a full user object with displayName
+        tokenState.userInfo = tokenStatus.user;
+    } else if (tokenStatus && tokenStatus.user && !tokenState.userInfo) {
+        // If fetchUserInfo failed AND tokenState.userInfo is still null,
+        // use tokenStatus.user as a last resort (might lack displayName).
+        tokenState.userInfo = tokenStatus.user;
+    } else if (!fetchedUserInfo) {
+        // If fetchUserInfo failed and no other source, ensure it's null or keep existing if any.
+        // If tokenState.userInfo was already populated by a previous valid fetch,
+        // and this fetchUserInfo failed, we might want to keep the old one.
+        // For now, if fetchUserInfo returns null, we reflect that, unless checkOAuthToken provided one.
+        // The logic in checkOAuthToken will handle preserving existing tokenState.userInfo if its call is the one without displayName.
+        // This specific spot: if fetchUserInfo is null, tokenState.userInfo is what checkOAuthToken left it as, or null.
+    }
 
-    // Even if token check fails, we should remain authenticated at this point
-    // as the login was already successful
 
-    // Update tokenState with complete info
+    // Update tokenState with all information
     tokenState = {
-        isAuthenticated: true,  // Always set to true on successful login
-        tokenData: tokenStatus || { status: "active", valid: true },
+        isAuthenticated: true,
+        tokenData: tokenStatus || { status: "active", valid: true }, // Use fresh token data
         lastChecked: new Date().toISOString(),
-        userId: currentUserId // Use saved ID from before
+        userId: currentUserId,
+        userInfo: tokenState.userInfo // Persist the consolidated user info
     };
 
     // Log what we're saving to storage
-    console.log('Saving authenticated state with user ID:', tokenState.userId);
-
-    // Save to storage
+    console.log('Saving authenticated state with user ID:', tokenState.userId, 'and user info:', tokenState.userInfo);
     await chrome.storage.local.set({ tokenState });
 
-    // Send detailed token data to UI if available
+    // Notify sidebars with the updated auth status including the best available user info
+    await notifySidebarsAboutAuth(true, tokenState.userInfo);
+
+    // Send detailed token data to UI if available (sidebar might use it for more than just auth status)
     if (tokenStatus) {
         try {
             chrome.runtime.sendMessage({
                 type: 'token-status',
-                payload: tokenStatus
+                payload: tokenState.tokenData
             });
-            console.log('Sent detailed token status via runtime.sendMessage');
+            console.log('Sent detailed token status via runtime.sendMessage after login');
         } catch (err) {
-            console.error('Error sending token status message:', err);
+            console.error('Error sending token status message post-login:', err);
         }
     }
 
-    console.log('Authentication process completed successfully');
+    // Start periodic token checking if not already running or if stopped
+    startTokenChecking();
+
+    console.log('Authentication process completed successfully with user info.');
 }
 
 /**
  * Notify all sidebars about authentication status 
  * @param {boolean} isAuthenticated - The current authentication status
+ * @param {object} userInfo - Optional user information
  */
-async function notifySidebarsAboutAuth(isAuthenticated) {
-    console.log('Notifying all sidebars about auth status:', isAuthenticated);
+async function notifySidebarsAboutAuth(isAuthenticated, userInfo = null) {
+    console.log('Notifying all sidebars about auth status:', isAuthenticated, 'User Info:', userInfo);
 
     // PERFORMANCE OPTIMIZATION: Use all available notification methods in parallel
     // to ensure at least one reaches the UI as quickly as possible
@@ -382,6 +412,7 @@ async function notifySidebarsAboutAuth(isAuthenticated) {
                 type: 'auth-status',
                 payload: {
                     isAuthenticated: isAuthenticated,
+                    userInfo: isAuthenticated ? (userInfo || tokenState.userInfo) : null, // Include user info
                     timestamp: Date.now() // Include timestamp for freshness check
                 }
             });
@@ -412,6 +443,7 @@ async function notifySidebarsAboutAuth(isAuthenticated) {
                                 type: 'auth-status',
                                 payload: {
                                     isAuthenticated: isAuthenticated,
+                                    userInfo: isAuthenticated ? (userInfo || tokenState.userInfo) : null, // Include user info
                                     timestamp: Date.now()
                                 }
                             });
@@ -439,6 +471,7 @@ async function notifySidebarsAboutAuth(isAuthenticated) {
             chrome.storage.local.set({
                 lastAuthStatus: {
                     isAuthenticated: isAuthenticated,
+                    userInfo: isAuthenticated ? (userInfo || tokenState.userInfo) : null, // Include user info
                     timestamp: Date.now()
                 }
             });
@@ -507,63 +540,86 @@ async function checkOAuthToken(options = {}) {
             if (response.status === 401 || response.status === 403) {
                 console.log('Received unauthorized response, marking as not authenticated');
                 tokenState.isAuthenticated = false;
+                tokenState.userInfo = null; // Clear user info on auth failure
                 await chrome.storage.local.set({ tokenState });
-
-                // Notify sidebars that authentication is now invalid
                 await notifySidebarsAboutAuth(false);
+            } else {
+                // For other errors, we might not invalidate auth immediately,
+                // but we won't have new token data.
+                // However, if token is invalid, clear user info.
+                tokenState.userInfo = null; // Clear user info on error
+                await chrome.storage.local.set({ tokenState }); // Save updated state
+                await notifySidebarsAboutAuth(tokenState.isAuthenticated, null); // Notify UI, keep current auth state if not 401/403
             }
-
-            throw new Error('Failed to check token status');
+            throw new Error(`Failed to check token status: ${response.status} ${response.statusText}`);
         }
 
         const data = await response.json();
-        console.log('Token status (detailed):', JSON.stringify(data, null, 2));
+        console.log('Token status (detailed from /token/status):', JSON.stringify(data, null, 2));
 
-        // Update auth state based on token status
-        // Server might return different formats, check all possible fields
-        const isActive = data &&
-            (data.status === "active" ||
-                data.valid === true ||
-                data.expires_in_seconds > 0);
+        const isActive = data && (data.status === "active" || data.valid === true || data.expires_in_seconds > 0);
+        let newPotentialUserInfo = null;
 
-        console.log('Token active state determined:', isActive);
-
-        // If authentication state changed, update UI
-        if (tokenState.isAuthenticated !== isActive) {
-            console.log(`Authentication state changed from ${tokenState.isAuthenticated} to ${isActive}`);
-
-            // Always update isAuthenticated based on token status
-            tokenState.isAuthenticated = isActive;
-
-            // Notify sidebars about the change
-            await notifySidebarsAboutAuth(isActive);
+        if (isActive) {
+            if (data.user && data.user.displayName) {
+                // If /token/status provides a user object with displayName, use it.
+                newPotentialUserInfo = data.user;
+            } else if (data.user && !data.user.displayName && tokenState.userInfo && tokenState.userInfo.displayName) {
+                // If /token/status provides a user object WITHOUT displayName,
+                // but we already have a userInfo with displayName, keep the existing one.
+                newPotentialUserInfo = tokenState.userInfo;
+            } else if (data.user) {
+                // If /token/status provides a user object without displayName, and we don't have a better one.
+                newPotentialUserInfo = data.user;
+            }
+            else {
+                // If /token/status provides no user object, preserve existing userInfo.
+                newPotentialUserInfo = tokenState.userInfo;
+            }
         } else {
-            // Always update isAuthenticated based on token status
-            tokenState.isAuthenticated = isActive;
+            // Token is not active, clear user info.
+            newPotentialUserInfo = null;
         }
 
-        // Update token data
-        tokenState.tokenData = data;
-        tokenState.tokenData.user_id = tokenState.userId; // Ensure user ID is in token data
-        tokenState.lastChecked = new Date().toISOString();
+        // Check if authentication state or user info actually changed
+        const authChanged = tokenState.isAuthenticated !== isActive;
+        const userInfoChanged = JSON.stringify(tokenState.userInfo) !== JSON.stringify(newPotentialUserInfo);
 
-        // Save to storage
+        if (authChanged || userInfoChanged) {
+            console.log(`Auth state or user info changed. Auth: ${tokenState.isAuthenticated} -> ${isActive}. UserInfo changed: ${userInfoChanged}`);
+            tokenState.isAuthenticated = isActive;
+            tokenState.userInfo = newPotentialUserInfo;
+            await notifySidebarsAboutAuth(isActive, tokenState.userInfo);
+        } else {
+            // Ensure internal state is consistent even if no notification needed
+            tokenState.isAuthenticated = isActive;
+            tokenState.userInfo = newPotentialUserInfo;
+        }
+
+        tokenState.tokenData = data; // Store the full response from /token/status
+        tokenState.lastChecked = new Date().toISOString();
         await chrome.storage.local.set({ tokenState });
 
-        // Always send token status update, even if auth state didn't change
-        try {
-            chrome.runtime.sendMessage({
-                type: 'token-status',
-                payload: data
-            });
-        } catch (error) {
-            console.error('Error sending token status update:', error);
-        }
+        return tokenState.tokenData;
 
-        return data;
     } catch (error) {
-        console.error('Error checking token:', error);
-        return null;
+        console.error('Error checking OAuth token:', error);
+        // On error, assume token might be invalid, but preserve user ID.
+        // Critical: if checkOAuthToken fails, what happens to isAuthenticated?
+        // If it was a network error, not an auth error, we might want to keep isAuthenticated true but flag data as stale.
+        // For now, the logic above handles 401/403 by setting isAuthenticated = false.
+        // For other errors, isAuthenticated might remain true from a previous successful check.
+        // Let's ensure userInfo is cleared if we can't confirm token validity.
+        const previousAuthStatus = tokenState.isAuthenticated;
+        tokenState.isAuthenticated = false; // Safer to assume false if check fails badly
+        tokenState.tokenData = null;
+        tokenState.userInfo = null;
+        tokenState.lastChecked = new Date().toISOString();
+        await chrome.storage.local.set({ tokenState });
+        if (previousAuthStatus) { // Only notify if it was previously true
+            await notifySidebarsAboutAuth(false); // Notify UI about failure
+        }
+        return { valid: false, status: "error", error: error.message, user: null };
     }
 }
 
@@ -611,111 +667,81 @@ function startTokenChecking() {
  * Perform logout
  */
 async function performLogout() {
+    console.log('Performing logout for user ID:', tokenState.userId);
     try {
-        // Call logout API - use the multi-user v2 endpoint with user ID
-        await fetch(`${API_BASE_URL}/auth/oauth/v2/logout?user_id=${encodeURIComponent(tokenState.userId)}`);
+        // Call the server endpoint to invalidate the token, if applicable
+        if (tokenState.userId) {
+            await fetch(`${API_BASE_URL}/auth/oauth/v2/logout?user_id=${encodeURIComponent(tokenState.userId)}`, {
+                method: 'POST', // Or GET, depending on your API
+            });
+        }
+    } catch (error) {
+        console.error('Error during server-side logout:', error);
+        // Continue with client-side logout even if server call fails
+    }
 
-        // Reset token state but preserve user ID
-        const userId = tokenState.userId;
-        tokenState = {
+    // Clear local token state
+    tokenState.isAuthenticated = false;
+    tokenState.tokenData = null;
+    tokenState.lastChecked = new Date().toISOString();
+    tokenState.userInfo = null; // Clear user info
+
+    // Remove from storage
+    await chrome.storage.local.remove(['tokenState', 'lastAuthStatus']);
+    // For safety, also set a default empty state back
+    await chrome.storage.local.set({
+        tokenState: {
             isAuthenticated: false,
             tokenData: null,
             lastChecked: null,
-            userId: userId // Preserve the user ID
-        };        // Clear from storage
-        await chrome.storage.local.set({ tokenState });
-
-        // Stop token checking
-        if (self.tokenCheckIntervalId) {
-            clearInterval(self.tokenCheckIntervalId);
-            self.tokenCheckIntervalId = null;
+            userId: tokenState.userId, // Keep userId for potential re-login
+            userInfo: null
         }
+    });
 
-        console.log('Logout successful');
-        return true;
-    } catch (error) {
-        console.error('Error during logout:', error);
-        return false;
-    }
+
+    // Stop periodic token checking
+    stopTokenChecking();
+
+    // Notify sidebars
+    await notifySidebarsAboutAuth(false);
+
+    console.log('Logout complete.');
 }
 
-/**
- * Fetch Jira projects
- */
-async function fetchJiraProjects() {
+// Placeholder function for fetching user info - replace with your actual implementation
+async function fetchUserInfo(userId) {
+    if (!userId) {
+        console.warn('fetchUserInfo called without userId');
+        return null;
+    }
+    console.log('Fetching user info for user ID:', userId);
     try {
-        console.log(`Fetching Jira projects for user ${tokenState.userId}`);
-
-        // First check if the token is actually valid by doing a status check
-        const tokenStatus = await checkOAuthToken();
-        if (!tokenStatus || !tokenStatus.valid) {
-            console.error('Token invalid or expired, cannot fetch projects');
-            // Update UI state to reflect the authentication issue
-            await notifySidebarsAboutAuth(false);
-            throw new Error('Authentication token invalid or expired');
-        }
-
-        const response = await fetch(`${API_BASE_URL}/jira/v2/projects?user_id=${encodeURIComponent(tokenState.userId)}`);
-
-        // Get detailed error info if available
+        const response = await fetch(`${API_BASE_URL}/user/profile?user_id=${encodeURIComponent(userId)}`);
         if (!response.ok) {
             const errorText = await response.text();
-            console.error(`Server responded with ${response.status} ${response.statusText}: ${errorText}`);
-            throw new Error(`Failed to fetch projects (${response.status}: ${response.statusText})`);
+            console.error(`Failed to fetch user profile for ${userId}. Status: ${response.status}. Body: ${errorText}`);
+            throw new Error(`Failed to fetch user profile: ${response.status}`);
         }
+        const userData = await response.json();
+        console.log('User data received:', userData);
 
-        const data = await response.json();
-        return data;
+        if (userData && userData.displayName) {
+            return {
+                displayName: userData.displayName,
+                // Include other fields if your sidebar needs them, e.g., accountId, avatarUrls
+                // accountId: userData.accountId, 
+                // emailAddress: userData.emailAddress 
+            };
+        } else {
+            console.warn('User data from /user/profile does not contain displayName:', userData);
+            return null;
+        }
     } catch (error) {
-        console.error('Error fetching projects:', error);
-        // Return empty array but with error info that can be displayed
-        return { items: [], error: error.message };
+        console.error('Error fetching user info:', error);
+        return null;
     }
 }
 
-/**
- * Fetch Jira tasks
- */
-async function fetchJiraTasks(filters = {}) {
-    try {
-        console.log(`Fetching Jira tasks for user ${tokenState.userId} with filters:`, filters);
-
-        // First check if the token is actually valid
-        const tokenStatus = await checkOAuthToken();
-        if (!tokenStatus || !tokenStatus.valid) {
-            console.error('Token invalid or expired, cannot fetch tasks');
-            // Update UI state to reflect the authentication issue
-            await notifySidebarsAboutAuth(false);
-            throw new Error('Authentication token invalid or expired');
-        }
-
-        const url = new URL(`${API_BASE_URL}/jira/v2/issues`);
-
-        // Add user ID for multi-user support
-        url.searchParams.append('user_id', tokenState.userId);
-
-        // Add filters to query params
-        if (filters.project) url.searchParams.append('project', filters.project);
-        if (filters.status) url.searchParams.append('status', filters.status);
-
-        console.log(`Sending request to ${url.toString()}`);
-        const response = await fetch(url);
-
-        // Get detailed error info if available
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error(`Server responded with ${response.status} ${response.statusText}: ${errorText}`);
-            throw new Error(`Failed to fetch tasks (${response.status}: ${response.statusText})`);
-        }
-
-        const data = await response.json();
-        return data;
-    } catch (error) {
-        console.error('Error fetching tasks:', error);
-        // Return empty array but with error info that can be displayed
-        return { items: [], error: error.message };
-    }
-}
-
-// Initialize on service worker activation
+// Initialize the extension
 initialize();

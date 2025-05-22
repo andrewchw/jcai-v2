@@ -322,6 +322,23 @@ select {
     font-size: 12px;
     color: #6B778C;
     text-align: center;
+    display: flex;
+    /* To allow stacking or side-by-side */
+    flex-direction: column;
+    /* Stack token status and user display */
+    align-items: center;
+    /* Center items if stacked */
+}
+
+#user-display {
+    font-size: 11px;
+    /* Smaller font size for footer info */
+    color: #888;
+    /* Lighter color */
+    text-align: center;
+    /* Or right, depending on preference */
+    margin-top: 4px;
+    /* Add some space above */
 }
 
 /* Animations */
@@ -330,6 +347,7 @@ select {
         opacity: 0;
         transform: translateY(8px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -342,14 +360,14 @@ select {
 }
 
 ::-webkit-scrollbar-track {
-    background: #f1f1f1; 
+    background: #f1f1f1;
 }
- 
+
 ::-webkit-scrollbar-thumb {
-    background: #C1C7D0; 
+    background: #C1C7D0;
     border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: #6B778C; 
+    background: #6B778C;
 }

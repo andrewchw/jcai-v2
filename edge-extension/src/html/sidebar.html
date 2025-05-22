@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>JIRA Chatbot Assistant</title>
     <link rel="stylesheet" href="../css/sidebar.css">
 </head>
+
 <body>
     <div class="app-container">
         <header class="app-header">
@@ -35,13 +37,10 @@
                     </div>
                     <!-- Messages will be appended here by JavaScript -->
                 </div>
-                
+
                 <div class="input-container">
-                    <textarea 
-                        id="user-input" 
-                        placeholder="Ask about your JIRA tasks (e.g., 'Show my open tasks')..." 
-                        rows="2"
-                    ></textarea>
+                    <textarea id="user-input" placeholder="Ask about your JIRA tasks (e.g., 'Show my open tasks')..."
+                        rows="2"></textarea>
                     <div class="button-row">
                         <button id="clear-button" class="action-button">Clear</button>
                         <button id="send-button" class="action-button primary">Send</button>
@@ -110,9 +109,11 @@
 
         <footer class="app-footer">
             <div id="token-status"></div>
+            <div id="user-display" style="margin-top: 5px;"></div> <!-- Added for username -->
         </footer>
     </div>
 
     <script src="../js/sidebar.js" type="module"></script>
 </body>
+
 </html>
