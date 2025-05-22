@@ -51,18 +51,67 @@ const state = {
 function initialize() {
     console.log('Initializing sidebar');
 
+    // Load settings before connecting to background script
+    loadSettings().then(() => {
+        // Check if we have a saved auth status in storage
+        chrome.storage.local.get(['tokenState', 'lastAuthStatus'], (result) => {
+            if (result.tokenState && result.tokenState.isAuthenticated) {
+                console.log('Found authenticated state in storage');
+                handleAuthStatusUpdate({ isAuthenticated: result.tokenState.isAuthenticated });
+
+                if (result.tokenState.tokenData) {
+                    handleTokenStatusUpdate(result.tokenState.tokenData);
+                }
+            } else if (result.lastAuthStatus) {
+                console.log('Found auth status backup in storage:', result.lastAuthStatus);
+                handleAuthStatusUpdate({ isAuthenticated: result.lastAuthStatus.isAuthenticated });
+            }
+
+            // Connect to background script after checking storage
+            connectToBackground();
+        });
+    });
+
+    // Display initial connection status
+    updateConnectionStatus(false, 'Initializing...');
+}
+
+/**
+ * Connect to the background script
+ */
+function connectToBackground() {
     // Connect to background script
-    port = chrome.runtime.connect({ name: 'sidebar' });
+    try {
+        // First disconnect any existing port
+        if (port) {
+            try {
+                port.disconnect();
+            } catch (e) {
+                console.log('Error disconnecting existing port:', e);
+            }
+        }
 
-    setupPortListeners();
-    setupEventListeners();
-    loadSettings();
+        port = chrome.runtime.connect({ name: 'sidebar' });
+        console.log('Connected to background script'); setupPortListeners();
 
-    // Display connection status
-    updateConnectionStatus(false, 'Connecting...');
+        // Only set up event listeners the first time
+        // Use storage or a variable to track initialization to be more resilient
+        chrome.storage.local.get(['listenersInitialized'], (result) => {
+            if (!result.listenersInitialized) {
+                setupEventListeners();
+                chrome.storage.local.set({ listenersInitialized: true });
+            }
+        });
 
-    // Check connectivity to server
-    checkServerConnectivity();
+        // Check connectivity to server
+        checkServerConnectivity();
+    } catch (error) {
+        console.error('Failed to connect to background script:', error);
+        updateConnectionStatus(false, 'Background connection failed');
+
+        // Retry connection after delay
+        setTimeout(connectToBackground, 2000);
+    }
 }
 
 /**
@@ -256,23 +305,37 @@ function handleAuthStatusUpdate(payload) {
         return;
     }
 
+    // Update state
     state.isAuthenticated = payload.isAuthenticated;
 
     // Update UI
     elements.oauthStatus.innerHTML = state.isAuthenticated ?
-        '<span style="color: var(--success-color);">Authenticated</span>' :
-        '<span>Not authenticated</span>';
+        '<span style="color: var(--success-color);">Authenticated ✓</span>' :
+        '<span style="color: var(--error-color);">Not authenticated</span>';
 
     elements.loginButton.disabled = state.isAuthenticated;
     elements.logoutButton.disabled = !state.isAuthenticated;
 
     console.log('Auth UI updated - isAuthenticated:', state.isAuthenticated);
 
+    // Save the auth state to local storage as fallback
+    chrome.storage.local.set({
+        lastUIAuthState: {
+            isAuthenticated: state.isAuthenticated,
+            timestamp: Date.now()
+        }
+    });
+
     // If authenticated, load projects and check token status
     if (state.isAuthenticated) {
         console.log('Requesting token status and project data');
-        port.postMessage({ type: 'check-token' });
-        port.postMessage({ type: 'get-jira-projects' });
+        if (port) {
+            port.postMessage({ type: 'check-token' });
+            port.postMessage({ type: 'get-jira-projects' });
+        } else {
+            console.warn('Cannot request data - port not connected');
+            connectToBackground();
+        }
     }
 }
 
@@ -288,25 +351,55 @@ function handleTokenStatusUpdate(tokenData) {
         return;
     }
 
-    // Update token status in footer
-    if (tokenData.valid) {
-        const expiresAt = tokenData.expiresAt || (Date.now() + 3600000); // Default to 1hr if missing
-        const expiresIn = Math.floor((expiresAt - Date.now()) / 1000);
+    // Check multiple indicators of validity
+    const isValid = tokenData.valid === true ||
+        tokenData.status === 'active' ||
+        (tokenData.expires_in_seconds && tokenData.expires_in_seconds > 0);
+
+    // Update authentication state if token is invalid
+    if (!isValid && state.isAuthenticated) {
+        console.warn('Token is invalid but UI shows authenticated - correcting UI state');
+        handleAuthStatusUpdate({ isAuthenticated: false });
+    }    // Update token status in footer based on validity
+    if (isValid) {
+        // Calculate expiration time
+        const expiresIn = tokenData.expires_in_seconds ||
+            (tokenData.expiresAt ? Math.floor((new Date(tokenData.expiresAt) - Date.now()) / 1000) : 3600);
 
         if (expiresIn <= 0) {
-            elements.tokenStatus.textContent = 'Token expired';
+            elements.tokenStatus.innerHTML = '<span style="color: var(--error-color);">Token expired</span>';
             console.warn('Token appears to be expired');
+
+            // Token is expired, update authentication state
+            if (state.isAuthenticated) {
+                handleAuthStatusUpdate({ isAuthenticated: false });
+            }
             return;
         }
 
-        const minutes = Math.floor(expiresIn / 60);
-        const seconds = expiresIn % 60;
+        // Format expiration time
+        let expirationText;
+        if (expiresIn > 3600) {
+            expirationText = `${Math.floor(expiresIn / 3600)} hours`;
+        } else if (expiresIn > 60) {
+            expirationText = `${Math.floor(expiresIn / 60)} minutes`;
+        } else {
+            expirationText = `${expiresIn} seconds`;
+        }
 
-        elements.tokenStatus.textContent = `Token active - expires in ${minutes}m ${seconds}s`;
-        console.log(`Token active with ${minutes}m ${seconds}s remaining`);
+        elements.tokenStatus.innerHTML = `<span style="color: var(--success-color);">Valid (expires in ${expirationText})</span>`;
+
+        // If we have userId in the token data, make sure it's saved
+        if (tokenData.user_id) {
+            console.log(`Token contains user ID: ${tokenData.user_id}`);
+            // We could send this back to background.js if needed
+            port.postMessage({
+                type: 'update-user-id',
+                payload: { userId: tokenData.user_id }
+            });
+        }
     } else {
-        elements.tokenStatus.textContent = 'Token expired or invalid';
-        console.warn('Token reported as invalid');
+        elements.tokenStatus.innerHTML = '<span style="color: var(--error-color);">Invalid token</span>';
     }
 }
 

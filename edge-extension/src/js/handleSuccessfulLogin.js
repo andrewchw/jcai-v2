@@ -1,0 +1,75 @@
+/**
+ * Handles a successful OAuth login. 
+ * This function is called after a user completes OAuth authentication.
+ * It ensures user ID is preserved and updates token state.
+ */
+async function handleSuccessfulLogin() {
+    // Log the current state for debugging
+    console.log('Handling successful login with user ID:', tokenState.userId);
+
+    // Store the current user ID first to ensure we don't lose it
+    const currentUserId = tokenState.userId;
+
+    // Get token status from API using the current user ID - IMPORTANT
+    if (!currentUserId) {
+        console.error('No user ID found during login completion! Using fallback USER_ID');
+        tokenState.userId = USER_ID;
+        // Save immediately to ensure consistency
+        await chrome.storage.local.set({ tokenState });
+    }
+
+    // Now check the token with the confirmed user ID
+    const tokenStatus = await checkOAuthToken();
+
+    // Always consider authenticated after successful login
+    const isActive = tokenStatus && (tokenStatus.valid || tokenStatus.status === "active");
+
+    // Create a new token state that explicitly maintains the user ID
+    tokenState = {
+        isAuthenticated: true,  // Always set to true on successful login
+        tokenData: tokenStatus || { status: "unknown" },
+        lastChecked: new Date().toISOString(),
+        userId: currentUserId || USER_ID // Use current ID or fallback to generated one
+    };
+
+    // Log what we're saving to storage
+    console.log('Saving authenticated state with user ID:', tokenState.userId);
+
+    // Save to storage
+    await chrome.storage.local.set({ tokenState });
+
+    // Start periodic token checking
+    startTokenChecking();
+
+    console.log('Notifying sidebars about successful authentication');
+
+    // Notify all connected sidebars
+    chrome.runtime.sendMessage({
+        type: 'auth-status',
+        payload: {
+            isAuthenticated: true
+        }
+    });
+
+    // Also send token status
+    chrome.runtime.sendMessage({
+        type: 'token-status',
+        payload: tokenState.tokenData
+    });
+
+    // Re-check connected ports and update them directly as well
+    // This ensures the sidebar UI updates even if runtime messages aren't received
+    const ports = chrome.runtime.connect ? chrome.extension.connect : [];
+    if (Array.isArray(ports)) {
+        ports.forEach(port => {
+            if (port.name === 'sidebar') {
+                port.postMessage({
+                    type: 'auth-status',
+                    payload: { isAuthenticated: true }
+                });
+            }
+        });
+    }
+
+    console.log('Sent authentication success messages to sidebars');
+}

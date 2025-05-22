@@ -1,0 +1,48 @@
+/**
+ * Checks the status of an OAuth token for a specific user ID.
+ * Ensures a valid user ID is set before making the request.
+ */
+async function checkOAuthToken() {
+    try {
+        // Ensure we have a valid user ID before making the request
+        if (!tokenState.userId) {
+            console.error('Missing user ID when checking token status, setting default');
+            tokenState.userId = USER_ID;
+            await chrome.storage.local.set({ tokenState });
+        }
+
+        console.log(`Checking token status for user ID: ${tokenState.userId}`);
+
+        // Use the multi-user OAuth v2 endpoint instead of the single-user one
+        // Include user ID as query parameter
+        const response = await fetch(`${API_BASE_URL}/auth/oauth/v2/status?user_id=${encodeURIComponent(tokenState.userId)}`);
+
+        if (!response.ok) {
+            console.error(`Token status check failed with status: ${response.status}`);
+            throw new Error('Failed to check token status');
+        }
+
+        const data = await response.json();
+        console.log('Token status (detailed):', JSON.stringify(data, null, 2));
+
+        // Update auth state based on token status
+        if (data && (data.status === "active" || data.valid)) {
+            console.log('Valid token detected, ensuring auth state is updated');
+            if (!tokenState.isAuthenticated) {
+                tokenState.isAuthenticated = true;
+                // Save to storage
+                await chrome.storage.local.set({ tokenState });
+                // Notify sidebars
+                chrome.runtime.sendMessage({
+                    type: 'auth-status',
+                    payload: { isAuthenticated: true }
+                });
+            }
+        }
+
+        return data;
+    } catch (error) {
+        console.error('Error checking token:', error);
+        return null;
+    }
+}
