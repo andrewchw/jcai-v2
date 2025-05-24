@@ -12,12 +12,13 @@ const elements = {
     messagesContainer: document.getElementById('messages-container'),
     userInput: document.getElementById('user-input'),
     sendButton: document.getElementById('send-button'),
-    clearButton: document.getElementById('clear-button'),
-
-    // Tasks
+    clearButton: document.getElementById('clear-button'),    // Tasks
     projectFilter: document.getElementById('project-filter'),
     statusFilter: document.getElementById('status-filter'),
     tasksList: document.getElementById('tasks-list'),
+    tasksCountText: document.getElementById('tasks-count-text'),
+    refreshTasksButton: document.getElementById('refresh-tasks'),
+    createTaskButton: document.getElementById('create-task'),
 
     // Settings
     serverUrl: document.getElementById('server-url'),
@@ -279,11 +280,21 @@ function setupEventListeners() {
     });
 
     elements.sendButton.addEventListener('click', sendMessage);
-    elements.clearButton.addEventListener('click', clearChat);
-
-    // Filter changes
+    elements.clearButton.addEventListener('click', clearChat);    // Filter changes
     elements.projectFilter.addEventListener('change', loadTasks);
     elements.statusFilter.addEventListener('change', loadTasks);
+
+    // Task actions
+    elements.refreshTasksButton.addEventListener('click', () => {
+        // Force refresh by clearing the debounce timer
+        state.lastTasksCheck = 0;
+        loadTasks();
+    }); elements.createTaskButton.addEventListener('click', () => {
+        // Open JIRA create issue dialog using actual JIRA domain
+        const jiraDomain = 'https://3hk.atlassian.net';
+        const createUrl = `${jiraDomain}/secure/CreateIssue.jspa?pid=10000&issuetype=10001`;
+        window.open(createUrl, '_blank');
+    });
 
     // Login/Logout
     elements.loginButton.addEventListener('click', initiateLogin);
@@ -878,16 +889,34 @@ function handleTasksUpdate(data) {
             console.error('Failed to extract tasks data:', e);
             tasksArray = [];
         }
-    }// Update state
+    }    // Update state
     console.log('Setting tasks state with array of length:', tasksArray ? tasksArray.length : 0);
     state.tasks = tasksArray;
+
+    // Update task count
+    const taskCount = tasksArray ? tasksArray.length : 0;
+    if (elements.tasksCountText) {
+        if (taskCount === 0) {
+            elements.tasksCountText.textContent = 'No tasks found';
+        } else if (taskCount === 1) {
+            elements.tasksCountText.textContent = '1 task';
+        } else {
+            elements.tasksCountText.textContent = `${taskCount} tasks`;
+        }
+    }
 
     // Update tasks list
     elements.tasksList.innerHTML = '';
 
     if (!tasksArray || tasksArray.length === 0) {
         console.log('No tasks to display, showing empty state');
-        elements.tasksList.innerHTML = '<div class="empty-state">No tasks found</div>';
+        elements.tasksList.innerHTML = `
+            <div class="empty-state">
+                <div style="font-size: 48px; margin-bottom: 16px;">📋</div>
+                <div style="font-size: 16px; margin-bottom: 8px;">No tasks found</div>
+                <div style="font-size: 14px; color: #6B778C;">Try adjusting your filters or create a new task</div>
+            </div>
+        `;
         return;
     }
 
@@ -904,22 +933,93 @@ function handleTasksUpdate(data) {
         if (!task.key) {
             console.warn('Task missing key property:', task);
             return; // Skip this task
+        } const taskElement = document.createElement('div');
+        taskElement.className = 'task-item';        // Create clickable task key that opens JIRA issue
+        const taskKey = task.key;
+
+        // Extract JIRA domain from task.self URL if available, otherwise use default
+        let jiraDomain = 'https://3hk.atlassian.net'; // Default domain
+        if (task.self) {
+            try {
+                const selfUrl = new URL(task.self);
+                jiraDomain = `${selfUrl.protocol}//${selfUrl.hostname}`;
+            } catch (e) {
+                // Use default if URL parsing fails
+                console.warn('Could not parse task.self URL, using default JIRA domain');
+            }
         }
 
-        const taskElement = document.createElement('div');
-        taskElement.className = 'task-item';
+        const jiraUrl = task.self ? task.self.replace('/rest/api/2/issue/', '/browse/') :
+            `${jiraDomain}/browse/${taskKey}`;
+
+        // Determine status class for styling
+        const statusLower = (task.status || 'backlog').toLowerCase();
+        let statusClass = 'backlog';
+        if (statusLower.includes('progress') || statusLower.includes('doing')) {
+            statusClass = 'in-progress';
+        } else if (statusLower.includes('done') || statusLower.includes('complete')) {
+            statusClass = 'done';
+        } else if (statusLower.includes('todo') || statusLower.includes('open')) {
+            statusClass = 'todo';
+        }
+
+        // Create priority indicator
+        const priority = task.priority || 'Medium';
+        const priorityClass = priority.toLowerCase().includes('high') ? 'high' :
+            priority.toLowerCase().includes('low') ? 'low' : 'medium';
+
         taskElement.innerHTML = `
             <div class="task-header">
-                <span class="task-key">${task.key}</span>
-                <span class="task-status">${task.status || 'Unknown'}</span>
+                <a href="${jiraUrl}" target="_blank" class="task-key" title="Open ${taskKey} in JIRA">${taskKey}</a>
+                <span class="task-status ${statusClass}">${task.status || 'Backlog'}</span>
             </div>
-            <div class="task-summary">${task.summary || 'No summary'}</div>
+            <div class="task-summary" title="${task.summary || 'No summary'}">${task.summary || 'No summary'}</div>
             <div class="task-meta">
-                ${task.assignee ? `<span>Assignee: ${task.assignee}</span>` : ''}
-                ${task.dueDate ? `<span>Due: ${formatDate(task.dueDate)}</span>` : ''}
+                ${task.priority ? `<span class="task-priority ${priorityClass}">🔥 ${task.priority}</span>` : ''}
+                ${task.dueDate ? `<span>📅 Due: ${formatDate(task.dueDate)}</span>` : ''}
+                ${task.updated ? `<span>🔄 Updated: ${formatDate(task.updated)}</span>` : ''}
             </div>
-        `; elements.tasksList.appendChild(taskElement);
+        `;
+
+        // Add click handler for the entire task item
+        taskElement.addEventListener('click', (e) => {
+            // Don't trigger if clicking on the task key link
+            if (e.target.classList.contains('task-key')) return;
+
+            // Open JIRA issue in new tab
+            window.open(jiraUrl, '_blank');
+        }); elements.tasksList.appendChild(taskElement);
     });
+}
+
+/**
+ * Format date for display
+ */
+function formatDate(dateString) {
+    if (!dateString) return '';
+
+    try {
+        const date = new Date(dateString);
+        const now = new Date();
+        const diffTime = Math.abs(now - date);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        // If within 7 days, show relative time
+        if (diffDays <= 7) {
+            if (diffDays === 0) return 'Today';
+            if (diffDays === 1) return date < now ? 'Yesterday' : 'Tomorrow';
+            return `${diffDays} days ${date < now ? 'ago' : 'from now'}`;
+        }
+
+        // Otherwise show formatted date
+        return date.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+        });
+    } catch (e) {
+        return dateString;
+    }
 }
 
 /**
@@ -1020,14 +1120,6 @@ function initiateLogin() {
  */
 function initiateLogout() {
     port.postMessage({ type: 'logout' });
-}
-
-/**
- * Format date for display
- */
-function formatDate(dateString) {
-    const date = new Date(dateString);
-    return date.toLocaleDateString();
 }
 
 // Initialize when DOM is loaded

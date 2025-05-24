@@ -47,7 +47,6 @@
                     </div>
                 </div>
             </div>
-
             <div id="tasks-container" class="tab-content">
                 <div class="filter-bar">
                     <select id="project-filter">
@@ -60,6 +59,15 @@
                         <option value="in-progress">In Progress</option>
                         <option value="done">Done</option>
                     </select>
+                </div>
+                <div class="tasks-header">
+                    <div class="tasks-count">
+                        <span id="tasks-count-text">Loading tasks...</span>
+                    </div>
+                    <div class="tasks-actions">
+                        <button id="refresh-tasks" class="action-button" title="Refresh tasks">🔄</button>
+                        <button id="create-task" class="action-button primary" title="Create new task">+ New</button>
+                    </div>
                 </div>
                 <div id="tasks-list" class="tasks-list">
                     <div class="loading-indicator">Loading tasks...</div>

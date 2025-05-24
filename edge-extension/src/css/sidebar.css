@@ -243,6 +243,32 @@ textarea:focus {
     gap: 8px;
 }
 
+.tasks-header {
+    padding: 12px 16px;
+    background-color: white;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.tasks-count {
+    font-size: 14px;
+    color: var(--text-color);
+    font-weight: 500;
+}
+
+.tasks-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.tasks-actions .action-button {
+    padding: 6px 12px;
+    font-size: 12px;
+    min-width: auto;
+}
+
 select {
     padding: 6px;
     border: 1px solid var(--border-color);
@@ -352,6 +378,136 @@ select {
         opacity: 1;
         transform: translateY(0);
     }
+}
+
+/* Task Item Styles */
+.task-item {
+    background: white;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    margin-bottom: 12px;
+    padding: 16px;
+    transition: var(--transition);
+    cursor: pointer;
+    position: relative;
+}
+
+.task-item:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 2px 8px rgba(0, 82, 204, 0.1);
+    transform: translateY(-1px);
+}
+
+.task-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.task-key {
+    font-weight: 600;
+    color: var(--primary-color);
+    font-size: 14px;
+    text-decoration: none;
+    border: 1px solid var(--primary-color);
+    padding: 4px 8px;
+    border-radius: 3px;
+    background: rgba(0, 82, 204, 0.1);
+}
+
+.task-key:hover {
+    background: var(--primary-color);
+    color: white;
+}
+
+.task-status {
+    font-size: 12px;
+    font-weight: 500;
+    padding: 4px 8px;
+    border-radius: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.task-status.backlog {
+    background: #DFE1E6;
+    color: #42526E;
+}
+
+.task-status.todo {
+    background: #DEEBFF;
+    color: #0747A6;
+}
+
+.task-status.in-progress {
+    background: #E9F2E4;
+    color: #216E4E;
+}
+
+.task-status.done {
+    background: #E3FCEF;
+    color: #006644;
+}
+
+.task-summary {
+    font-size: 14px;
+    color: var(--text-color);
+    margin-bottom: 8px;
+    line-height: 1.4;
+    font-weight: 500;
+}
+
+.task-meta {
+    display: flex;
+    gap: 12px;
+    font-size: 12px;
+    color: #6B778C;
+}
+
+.task-meta span {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.task-meta .assignee {
+    display: none;
+    /* Hide redundant assignee info since all tasks are assigned to current user */
+}
+
+.task-priority {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 500;
+}
+
+.task-priority.high {
+    color: var(--error-color);
+}
+
+.task-priority.medium {
+    color: var(--warning-color);
+}
+
+.task-priority.low {
+    color: var(--success-color);
+}
+
+/* Empty state styling */
+.empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: #6B778C;
+    font-style: italic;
+}
+
+.loading-indicator {
+    text-align: center;
+    padding: 20px;
+    color: #6B778C;
+    font-style: italic;
 }
 
 /* Scrollbar Styles */
