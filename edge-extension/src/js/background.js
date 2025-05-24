@@ -60,6 +60,38 @@ async function initialize() {
             handleSidebarConnection(port);
         }
     });
+
+    // Listen for messages from content scripts (hover icon)
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+        console.log('Received message from content script:', message);
+
+        switch (message.action) {
+            case 'openSidePanel':
+                // Open the side panel
+                if (chrome.sidePanel && chrome.sidePanel.open) {
+                    chrome.sidePanel.open({ windowId: sender.tab.windowId })
+                        .then(() => {
+                            console.log('Side panel opened successfully');
+                            sendResponse({ success: true });
+                        })
+                        .catch((error) => {
+                            console.error('Failed to open side panel:', error);
+                            sendResponse({ success: false, error: error.message });
+                        });
+                } else {
+                    console.error('Side panel API not available');
+                    sendResponse({ success: false, error: 'Side panel API not available' });
+                }
+                break;
+
+            default:
+                console.log('Unhandled message action:', message.action);
+                sendResponse({ success: false, error: 'Unknown action' });
+        }
+
+        // Return true to indicate async response
+        return true;
+    });
 }
 
 /**

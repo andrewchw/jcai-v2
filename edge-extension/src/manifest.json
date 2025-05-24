@@ -22,10 +22,12 @@
   "permissions": [
     "sidePanel",
     "storage",
-    "notifications"
+    "notifications",
+    "activeTab"
   ],
   "host_permissions": [
-    "http://localhost:8000/*"
+    "http://localhost:8000/*",
+    "<all_urls>"
   ],
   "side_panel": {
     "default_path": "html/sidebar.html"
@@ -36,8 +38,22 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["js/content.js"]
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "js/content.js"
+      ]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "images/icon128.png"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ]
 }

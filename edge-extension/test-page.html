@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JIRA Extension Test Page</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 40px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+
+        .test-section {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 15px;
+        }
+
+        .checklist {
+            list-style: none;
+            padding: 0;
+        }
+
+        .checklist li {
+            margin: 10px 0;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            position: relative;
+            padding-left: 40px;
+        }
+
+        .checklist li:before {
+            content: "✓";
+            position: absolute;
+            left: 15px;
+            color: #4CAF50;
+            font-weight: bold;
+        }
+
+        .highlight {
+            background: rgba(255, 255, 0, 0.2);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border-left: 4px solid #FFD700;
+        }
+
+        .scroll-content {
+            height: 300px;
+            overflow-y: auto;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        .content-block {
+            margin: 20px 0;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🚀 JIRA Extension Test Page</h1>
+
+        <div class="highlight">
+            <strong>Look for the JIRA hover icon on the right side of your screen!</strong><br>
+            It should appear as a clean, high-resolution JIRA icon without any background color.
+        </div>
+
+        <div class="test-section">
+            <h2>Test Checklist</h2>
+            <ul class="checklist">
+                <li>Hover icon appears on page load (within 1 second)</li>
+                <li>Icon shows clean JIRA logo without blue background</li>
+                <li>Icon is full size and clearer than before (48x48px)</li>
+                <li>Hover effect shows subtle shadow enhancement</li>
+                <li>Tooltip appears on hover: "Open JIRA Assistant"</li>
+                <li>Click opens extension sidebar</li>
+                <li>Auto-hide after 5 seconds of no interaction</li>
+                <li>Icon reappears when moving mouse or scrolling</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <h2>Visual Quality Tests</h2>
+            <div class="content-block">
+                <h3>Background Integration</h3>
+                <p>The icon should blend seamlessly with any website background because it no longer has the blue
+                    gradient placeholder. It should appear as a clean, professional floating button.</p>
+            </div>
+
+            <div class="content-block">
+                <h3>Resolution Test</h3>
+                <p>Using icon128.png as the source ensures crisp display on high-DPI screens. The icon should look sharp
+                    and clear, not pixelated or blurry.</p>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>Interaction Tests</h2>
+            <div class="scroll-content">
+                <h3>Scroll Test Area</h3>
+                <p>This is a scrollable area. When you scroll here, the hover icon should reappear if it was hidden.</p>
+                <div class="content-block">Scroll Content Block 1</div>
+                <div class="content-block">Scroll Content Block 2</div>
+                <div class="content-block">Scroll Content Block 3</div>
+                <div class="content-block">Scroll Content Block 4</div>
+                <div class="content-block">Scroll Content Block 5</div>
+                <div class="content-block">Scroll Content Block 6</div>
+                <div class="content-block">Scroll Content Block 7</div>
+                <div class="content-block">Scroll Content Block 8</div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>Expected Behavior</h2>
+            <ul>
+                <li><strong>Appearance:</strong> Clean JIRA icon with transparent background</li>
+                <li><strong>Size:</strong> 48x48px container with 40x40px icon</li>
+                <li><strong>Position:</strong> Fixed position on right side, vertically centered</li>
+                <li><strong>Animation:</strong> Smooth fade in/out and hover effects</li>
+                <li><strong>Auto-hide:</strong> Disappears after 5 seconds of inactivity</li>
+                <li><strong>Re-trigger:</strong> Mouse movement or scrolling brings it back</li>
+            </ul>
+        </div>
+
+        <div class="highlight">
+            <strong>If you see any issues:</strong><br>
+            1. Check the browser console (F12) for errors<br>
+            2. Verify the extension is loaded in edge://extensions/<br>
+            3. If the icon shows "JC" text instead of the image, check that icon128.png is accessible
+        </div>
+    </div>
+
+    <script>
+        // Add some dynamic content to test interactions
+        document.addEventListener('DOMContentLoaded', function () {
+            console.log('Test page loaded - JIRA extension hover icon should appear');
+
+            // Log mouse movements to help with debugging
+            let lastMove = 0;
+            document.addEventListener('mousemove', function (e) {
+                const now = Date.now();
+                if (now - lastMove > 1000) { // Log every second max
+                    console.log('Mouse movement detected at:', e.clientX, e.clientY);
+                    lastMove = now;
+                }
+            });
+        });
+    </script>
+</body>
+
+</html>
