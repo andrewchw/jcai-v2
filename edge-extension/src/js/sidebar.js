@@ -800,22 +800,25 @@ function loadTasks() {
         status: elements.statusFilter.value !== 'all' ? elements.statusFilter.value : null,
         userId: state.userId, // Include user ID in all task requests
         maxResults: 50, // Limit the number of results to prevent unbounded queries
-    };
+    };    // Always add a specific JQL query to prevent "Unbounded JQL" errors
+    // Focus on issues assigned to the current user in the JCAI project by default
+    let jqlBase = 'project = JCAI AND assignee = currentUser()';
 
-    // Always add a specific JQL query to prevent "Unbounded JQL" errors
-    // If we have a project filter, use that as the primary restriction
+    // Add project filter if specified (override default JCAI project)
     if (filters.project) {
-        filters.jql = `project = ${filters.project} ORDER BY updated DESC`;
-    }
-    // Otherwise use an updated date restriction
-    else {
-        filters.jql = 'updated >= -30d ORDER BY updated DESC';
+        jqlBase = `project = ${filters.project} AND assignee = currentUser()`;
     }
 
-    // Add status to JQL if provided
+    // Add status filter if specified
     if (filters.status) {
-        filters.jql = filters.jql.replace(' ORDER BY', ` AND status = "${filters.status}" ORDER BY`);
+        jqlBase += ` AND status = "${filters.status}"`;
     }
+
+    // Add date restriction to keep results recent and performant
+    jqlBase += ' AND updated >= -30d';
+
+    // Always add ordering for consistent results
+    filters.jql = jqlBase + ' ORDER BY updated DESC';
 
     // Log the request for debugging
     console.log('Requesting tasks with filters:', JSON.stringify(filters));

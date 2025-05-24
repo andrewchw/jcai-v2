@@ -78,6 +78,7 @@ async def get_jira_issues(
     user_id: str,
     project_key: Optional[str] = Query(None, description="Jira project key"),
     max_results: int = Query(10, description="Maximum number of issues to return"),
+    jql: Optional[str] = Query(None, description="JQL query for filtering issues"),
     db: Session = Depends(get_db)
 ):
     """
@@ -102,21 +103,22 @@ async def get_jira_issues(
             raise HTTPException(
                 status_code=500,
                 detail="Not connected to Jira. Please check your OAuth token."
-            )
-          # Build JQL query with proper search restrictions to avoid "Unbounded JQL" errors
-        if project_key:
-            jql = f"project = {project_key}"
+            )        # Build JQL query with proper search restrictions to avoid "Unbounded JQL" errors
+        if jql:
+            # Use the provided JQL query (already includes user filtering from frontend)
+            final_jql = jql
+            logger.info(f"Using provided JQL query: {final_jql}")
+        elif project_key:
+            # Fallback: construct user-focused query with project filter
+            final_jql = f"project = {project_key} AND assignee = currentUser() AND updated >= -30d ORDER BY updated DESC"
+            logger.info(f"Constructed project-specific JQL query: {final_jql}")        
         else:
-            # Always add a date restriction if no project specified
-            jql = "updated >= -30d"
-        
-        # Add ORDER BY clause at the end
-        jql += " ORDER BY updated DESC"
-        
-        logger.info(f"Using JQL query: {jql}")
+            # Fallback: construct user-focused query for JCAI project by default
+            final_jql = "project = JCAI AND assignee = currentUser() AND updated >= -30d ORDER BY updated DESC"
+            logger.info(f"Constructed JCAI project default JQL query: {final_jql}")
         
         # Search for issues using the token
-        result = jira_service.search_issues(jql=jql, max_results=max_results)
+        result = jira_service.search_issues(jql=final_jql, max_results=max_results)
         
         # Extract issues from result
         issues = []

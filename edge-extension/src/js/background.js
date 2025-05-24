@@ -308,23 +308,19 @@ function handleSidebarConnection(port) {
                 url.searchParams.append('jql', filters.jql);
                 console.log('Using JQL from filters:', filters.jql);
             } else {
-                // If no explicit JQL, construct one based on filters
-                let jql = '';
+                // If no explicit JQL, construct one focused on current user's assigned issues in JCAI project
+                let jql = 'project = JCAI AND assignee = currentUser()';
 
                 if (filters.project) {
-                    jql = `project = ${filters.project}`;
-
-                    if (filters.status) {
-                        jql += ` AND status = "${filters.status}"`;
-                    }
-                } else {
-                    // If no project filter, use date restriction
-                    jql = 'updated >= -30d';
-
-                    if (filters.status) {
-                        jql += ` AND status = "${filters.status}"`;
-                    }
+                    jql = `project = ${filters.project} AND assignee = currentUser()`;
                 }
+
+                if (filters.status) {
+                    jql += ` AND status = "${filters.status}"`;
+                }
+
+                // Add date restriction to keep results recent and performant
+                jql += ' AND updated >= -30d';
 
                 // Always add ordering
                 jql += ' ORDER BY updated DESC';

@@ -67,7 +67,7 @@ class DiagnosticTool:
         # Summary
         logger.info("="*50)
         if self.issues_found == 0:
-            logger.info("✅ No issues found! The extension should be working correctly.")
+            logger.info("SUCCESS: No issues found! The extension should be working correctly.")
         else:
             logger.info(f"Found {self.issues_found} issue(s), fixed {self.issues_fixed}.")
             if self.issues_found > self.issues_fixed:
@@ -168,13 +168,16 @@ class DiagnosticTool:
             load_tasks_start = content.find("function loadTasks()")
             if load_tasks_start != -1:
                 # Look for the patterns after the function declaration
-                after_func = content[load_tasks_start:load_tasks_start + 2000]  # Check first 2000 chars
+                after_func = content[load_tasks_start:load_tasks_start + 3000]  # Check first 3000 chars
                 
-                if "filters.jql" not in after_func:
+                if "filters.jql" not in after_func and "jqlBase" not in after_func:
                     logger.error("ERROR - JQL query construction not found in loadTasks!")
                     self.issues_found += 1
                 elif "updated >=" not in after_func:
                     logger.warning("WARNING - Date restriction for JQL may be missing.")
+                    self.issues_found += 1
+                elif "assignee = currentUser()" not in after_func:
+                    logger.warning("WARNING - User-focused filtering may be missing.")
                     self.issues_found += 1
                 else:
                     if self.verbose:
@@ -185,7 +188,8 @@ class DiagnosticTool:
         else:
             logger.error("ERROR - Could not find loadTasks function in sidebar.js!")
             self.issues_found += 1
-          # Check for debounce mechanisms in token checking
+            
+        # Check for debounce mechanisms in token checking
         has_debounce = (
             "lastTokenCheck" in content or
             "timeSinceAuth" in content or
