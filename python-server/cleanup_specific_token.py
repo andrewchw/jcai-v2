@@ -1,4 +1,3 @@
-\
 import os
 import sys
 from dotenv import load_dotenv
@@ -10,7 +9,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '.')))
 try:
     from app.core.database import get_db, Base, engine
     from app.models.token import OAuthToken
-    from app.models.user import User  # <--- Add this import
+    from app.models.user import User
     from app.core.config import settings # To ensure DATABASE_URL is loaded
 except ImportError as e:
     print(f"Error importing modules: {e}")
@@ -22,29 +21,50 @@ except ImportError as e:
 # This will load JIRA_TOKEN_ENCRYPTION_KEY and DATABASE_URL
 load_dotenv()
 
-USER_ID_TO_DELETE = "edge-1747926342290-0o8cbiri" # The user ID with the problematic token
-
-def cleanup_token():
+def cleanup_token(user_id):
+    """
+    Delete a token for a specific user ID
+    
+    Args:
+        user_id (str): The user ID to delete the token for
+    
+    Returns:
+        bool: True if a token was found and deleted, False otherwise
+    """
     db: Session = next(get_db())
     try:
-        token_to_delete = db.query(OAuthToken).filter(OAuthToken.user_id == USER_ID_TO_DELETE).first()
+        token_to_delete = db.query(OAuthToken).filter(OAuthToken.user_id == user_id).first()
 
         if token_to_delete:
-            print(f"Found token for user_id: {USER_ID_TO_DELETE}. Deleting...")
+            print(f"Found token for user_id: {user_id}. Deleting...")
             db.delete(token_to_delete)
             db.commit()
-            print(f"Successfully deleted token for user_id: {USER_ID_TO_DELETE}")
+            print(f"Successfully deleted token for user_id: {user_id}")
+            return True
         else:
-            print(f"No token found for user_id: {USER_ID_TO_DELETE}. Nothing to delete.")
+            print(f"No token found for user_id: {user_id}. Nothing to delete.")
+            return False
 
     except Exception as e:
         print(f"An error occurred: {e}")
         db.rollback()
+        return False
     finally:
         db.close()
 
 if __name__ == "__main__":
+    # Default user ID can be changed here or overridden with command line arg
+    DEFAULT_USER_ID = "edge-1747926342290-0o8cbiri"  # Example user ID
+    
+    if len(sys.argv) > 1:
+        USER_ID_TO_DELETE = sys.argv[1]
+        print(f"Using user ID from command line: {USER_ID_TO_DELETE}")
+    else:
+        USER_ID_TO_DELETE = DEFAULT_USER_ID
+        print(f"Using default user ID: {USER_ID_TO_DELETE}")
+    
     print(f"Attempting to delete token for user: {USER_ID_TO_DELETE} from database: {settings.DATABASE_URL}")
+    
     # Ensure the JIRA_TOKEN_ENCRYPTION_KEY is loaded if models.token tries to use it,
     # though for deletion it's not strictly necessary for decryption.
     encryption_key = os.getenv("JIRA_TOKEN_ENCRYPTION_KEY")
@@ -53,4 +73,5 @@ if __name__ == "__main__":
     else:
         print("JIRA_TOKEN_ENCRYPTION_KEY is loaded.")
         
-    cleanup_token()
+    result = cleanup_token(USER_ID_TO_DELETE)
+    print(f"Token cleanup result: {'Success' if result else 'Failed or not found'}")

@@ -103,9 +103,17 @@ async def get_jira_issues(
                 status_code=500,
                 detail="Not connected to Jira. Please check your OAuth token."
             )
+          # Build JQL query with proper search restrictions to avoid "Unbounded JQL" errors
+        if project_key:
+            jql = f"project = {project_key}"
+        else:
+            # Always add a date restriction if no project specified
+            jql = "updated >= -30d"
         
-        # Build JQL query
-        jql = f"project = {project_key}" if project_key else "order by updated DESC"
+        # Add ORDER BY clause at the end
+        jql += " ORDER BY updated DESC"
+        
+        logger.info(f"Using JQL query: {jql}")
         
         # Search for issues using the token
         result = jira_service.search_issues(jql=jql, max_results=max_results)

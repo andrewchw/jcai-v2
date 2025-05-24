@@ -42,30 +42,86 @@ const state = {
     serverUrl: 'http://localhost:8000',
     isAuthenticated: false,
     serverConnected: false,
+    userId: null, // Add user ID to state for API requests
     projects: [],
-    tasks: []
+    tasks: [],
+    lastTokenCheck: 0, // Track last token check time to prevent rapid requests
+    lastProjectsCheck: 0, // Track last projects check time
+    lastTasksCheck: 0, // Track last tasks check time
+    lastAuthTime: 0 // Track when authentication last completed for smart debouncing
 };
 
 /**
  * Initialize the sidebar
  */
 function initialize() {
-    console.log('Initializing sidebar');
-
-    // Load settings before connecting to background script
+    console.log('Initializing sidebar');    // Load settings before connecting to background script
     loadSettings().then(() => {
-        // Check if we have a saved auth status in storage
-        chrome.storage.local.get(['tokenState', 'lastAuthStatus'], (result) => {
-            if (result.tokenState && result.tokenState.isAuthenticated) {
-                console.log('Found authenticated state in storage');
-                handleAuthStatusUpdate({ isAuthenticated: result.tokenState.isAuthenticated });
+        // Check if we have a saved user ID in storage
+        chrome.storage.local.get(['savedUserId', 'tokenState', 'lastAuthStatus'], (result) => {
+            let shouldUpdateAuthOnStartup = false;
 
-                if (result.tokenState.tokenData) {
-                    handleTokenStatusUpdate(result.tokenState.tokenData);
+            // Restore saved user ID if available
+            if (result.savedUserId) {
+                state.userId = result.savedUserId;
+                console.log('Restored user ID from storage:', state.userId);
+            }
+
+            try {
+                if (result && result.tokenState) {
+                    if (result.tokenState.isAuthenticated === true) { // Explicitly check for true
+                        console.log('Found authenticated state in storage');
+
+                        // Check if the token is still valid before assuming we're authenticated
+                        const tokenData = result.tokenState.tokenData;
+                        if (tokenData) {
+                            const isValid = tokenData.valid === true ||
+                                tokenData.status === 'active' ||
+                                (typeof tokenData.expires_in_seconds === 'number' && tokenData.expires_in_seconds > 0);
+
+                            if (isValid) {
+                                console.log('Token appears to be valid, setting authenticated state');
+                                // Use a properly formatted payload
+                                handleAuthStatusUpdate({
+                                    isAuthenticated: true,
+                                    source: 'storage-init',
+                                    timestamp: Date.now()
+                                });
+                                handleTokenStatusUpdate(tokenData);
+                                shouldUpdateAuthOnStartup = true;
+                            } else {
+                                console.warn('Found authenticated state but token appears invalid, will request fresh status');
+                                // Don't set authenticated state yet - we'll let background.js verify it
+                                state.isAuthenticated = false;
+                            }
+                        } else {
+                            console.warn('Found authenticated state but no token data, will request fresh status');
+                            // Don't assume authenticated without token data
+                            state.isAuthenticated = false;
+                        }
+                    } else {
+                        console.log('Found unauthenticated state in storage');
+                        state.isAuthenticated = false;
+                    }
+                } else {
+                    console.log('No token state found in storage');
+                    state.isAuthenticated = false;
                 }
-            } else if (result.lastAuthStatus) {
+            } catch (error) {
+                console.error('Error processing token state:', error);
+                state.isAuthenticated = false;
+            }
+            if (result.lastAuthStatus && result.lastAuthStatus.isAuthenticated) {
                 console.log('Found auth status backup in storage:', result.lastAuthStatus);
-                handleAuthStatusUpdate({ isAuthenticated: result.lastAuthStatus.isAuthenticated });
+                // Only trust this as fallback if it's recent (within last hour)
+                const timeSinceUpdate = Date.now() - (result.lastAuthStatus.timestamp || 0);
+                if (timeSinceUpdate < 3600000) { // 1 hour
+                    handleAuthStatusUpdate({ isAuthenticated: result.lastAuthStatus.isAuthenticated });
+                    shouldUpdateAuthOnStartup = true;
+                } else {
+                    console.warn('Auth status backup is too old, requesting fresh status');
+                    state.isAuthenticated = false;
+                }
             }
 
             // Connect to background script after checking storage
@@ -122,18 +178,30 @@ function setupPortListeners() {
     port.onMessage.addListener((message) => {
         console.log('Received message from background:', message);
 
-        if (!message || typeof message.type !== 'string') { // Ensure type is a string
-            console.error('Received invalid or malformed message from background:', message);
+        // Enhanced message validation
+        if (!message) {
+            console.error('Received null or undefined message from background');
             return;
         }
 
-        try {
+        if (typeof message !== 'object') {
+            console.error('Received non-object message from background:', message);
+            return;
+        }
+
+        if (typeof message.type !== 'string') {
+            console.error('Received message without string type from background:', message);
+            return;
+        } try {
             switch (message.type) {
                 case 'auth-status':
-                    handleAuthStatusUpdate(message.payload);
-                    break;
-
-                case 'token-status':
+                    // Add extra safeguard for auth status messages
+                    if (message.payload !== undefined) {
+                        handleAuthStatusUpdate(message.payload);
+                    } else {
+                        console.error('Auth status message received with undefined payload');
+                    }
+                    break; case 'token-status':
                     handleTokenStatusUpdate(message.payload);
                     break;
 
@@ -144,6 +212,11 @@ function setupPortListeners() {
                 case 'jira-tasks':
                     handleTasksUpdate(message.payload);
                     break;
+
+                case 'user-id-update':
+                    handleUserIdUpdate(message.payload);
+                    break;
+
                 case 'error': // Add a specific case for 'error' type messages
                     console.error('Received error message from background:', message.payload);
                     // Optionally, display a generic error to the user in the UI
@@ -166,10 +239,20 @@ function setupPortListeners() {
             try {
                 port = chrome.runtime.connect({ name: 'sidebar' });
                 setupPortListeners();
-                console.log('Reconnected to background script');
+                console.log('Reconnected to background script');                // Check token status after reconnection (with smart debounce)
+                // We'll use a shorter debounce if we recently authenticated
+                const now = Date.now();
+                const lastCheck = state.lastTokenCheck || 0;
+                const timeSinceAuth = now - (state.lastAuthTime || 0);
+                const reconnectDebounceTime = timeSinceAuth < 30000 ? 2000 : 8000; // 2s if recent auth, 8s otherwise
 
-                // Check token status after reconnection
-                port.postMessage({ type: 'check-token' });
+                if (now - lastCheck > reconnectDebounceTime) {
+                    state.lastTokenCheck = now;
+                    console.log(`Checking token status after reconnection (using ${reconnectDebounceTime / 1000}s debounce)`);
+                    port.postMessage({ type: 'check-token' });
+                } else {
+                    console.log('Skipping reconnection token check - checked recently (' + Math.round((now - lastCheck) / 1000) + ' seconds ago)');
+                }
             } catch (error) {
                 console.error('Failed to reconnect to background script:', error);
                 updateConnectionStatus(false, 'Background connection failed');
@@ -273,11 +356,16 @@ async function checkServerConnectivity() {
         if (data.authenticated) {
             console.log('Server reports authenticated session, updating UI');
             handleAuthStatusUpdate({ isAuthenticated: true });
-        }
-
-        // Double check authentication status through background
+        }        // Double check authentication status through background (with debounce)
         setTimeout(() => {
-            port.postMessage({ type: 'check-token' });
+            const now = Date.now();
+            const lastCheck = state.lastTokenCheck || 0;
+            if (now - lastCheck > 5000) { // 5 seconds debounce
+                state.lastTokenCheck = now;
+                port.postMessage({ type: 'check-token' });
+            } else {
+                console.log('Skipping health check token verification - checked recently');
+            }
         }, 500);
 
     } catch (error) {
@@ -304,28 +392,90 @@ function updateConnectionStatus(connected, message) {
 function handleAuthStatusUpdate(payload) {
     console.log('Auth status update received:', payload);
 
-    // Validate payload
-    if (payload === undefined || typeof payload.isAuthenticated !== 'boolean') { // Check type of isAuthenticated
-        console.error('Invalid auth status payload:', payload);
+    // More robust payload validation
+    if (!payload) {
+        console.error('Empty auth status payload received');
         return;
     }
 
-    // Update state
-    state.isAuthenticated = payload.isAuthenticated;
+    // Initialize all variables at the beginning to prevent reference errors
+    let isAuth = false;
+    let timestamp = Date.now();
+    let source = 'unknown';
+    let userInfo = null;
+    let reason = 'N/A';
+    // Track if authentication state actually changed
+    let authStateChanged = false;
 
-    // Update UI
+    try {
+        // Extract additional metadata if available
+        if (typeof payload === 'object') {
+            timestamp = payload.timestamp || timestamp;
+            source = payload.source || source;
+            userInfo = payload.userInfo || null;
+            reason = payload.reason || 'N/A';
+        }
+
+        // Ensure we have a valid boolean for isAuthenticated
+        if (typeof payload === 'object' && 'isAuthenticated' in payload) {
+            isAuth = payload.isAuthenticated === true;
+        } else if (typeof payload === 'boolean') {
+            isAuth = payload === true;
+        } else if (typeof payload === 'string') {
+            isAuth = payload === 'true' || payload === 'authenticated';
+        } else {
+            console.error('Invalid auth status payload format:', typeof payload, payload);
+            return;
+        }
+        console.log(`Processed auth status: ${isAuth} (from: ${source}, at: ${new Date(timestamp).toISOString()}, reason: ${reason})`);    // Check if auth state actually changed
+        authStateChanged = state.isAuthenticated !== isAuth;
+        if (authStateChanged) {
+            console.log(`Auth state changed from ${state.isAuthenticated} to ${isAuth}`);
+            // Track authentication time for smart debouncing
+            if (isAuth) {
+                state.lastAuthTime = timestamp;
+                console.log('Set lastAuthTime for smart debouncing');
+            }
+        } else {
+            console.log(`Auth state unchanged: ${isAuth}`);
+        }
+    } catch (err) {
+        console.error('Error processing auth payload:', err);
+        return;
+    }
+
+    // Update state with safely processed value
+    state.isAuthenticated = isAuth;    // Update UI immediately for responsive feel
     elements.oauthStatus.innerHTML = state.isAuthenticated ?
         '<span style=\"color: var(--success-color);\">Authenticated ✓</span>' :
         '<span style=\"color: var(--error-color);\">Not authenticated</span>';
 
+    // Update button visibility immediately
+    elements.loginButton.style.display = state.isAuthenticated ? 'none' : 'block';
+    elements.logoutButton.style.display = state.isAuthenticated ? 'block' : 'none';
+    elements.loginButton.disabled = state.isAuthenticated;
+    elements.logoutButton.disabled = !state.isAuthenticated;
+
+    // Save the last auth status for potential recovery on restart
+    chrome.storage.local.set({
+        lastAuthStatus: {
+            isAuthenticated: state.isAuthenticated,
+            timestamp: timestamp,
+            source: source
+        }
+    });
+
+    // Update button visibility
+    elements.loginButton.style.display = state.isAuthenticated ? 'none' : 'block';
+    elements.logoutButton.style.display = state.isAuthenticated ? 'block' : 'none';
     elements.loginButton.disabled = state.isAuthenticated;
     elements.logoutButton.disabled = !state.isAuthenticated;
 
     if (state.isAuthenticated) {
         // User info might come from 'auth-status' or 'token-status' (via background.js)
         // Let's ensure userDisplay is updated if userInfo is present in this payload
-        if (payload.userInfo && payload.userInfo.displayName) {
-            elements.userDisplay.textContent = `Logged in as: ${payload.userInfo.displayName}`;
+        if (userInfo && userInfo.displayName) {
+            elements.userDisplay.textContent = `Logged in as: ${userInfo.displayName}`;
         } else {
             // If displayName is not in this specific payload,
             // it might arrive with 'token-status' or already be set.
@@ -337,32 +487,94 @@ function handleAuthStatusUpdate(payload) {
         elements.tokenStatus.textContent = 'N/A'; // Clear token status as well
     }
 
-    console.log('Auth UI updated - isAuthenticated:', state.isAuthenticated, 'Reason:', payload.reason || 'N/A');
+    console.log('Auth UI updated - isAuthenticated:', state.isAuthenticated, 'Reason:', reason);
 
     // Save the auth state to local storage as fallback
     chrome.storage.local.set({
         lastUIAuthState: {
             isAuthenticated: state.isAuthenticated,
             timestamp: Date.now(),
-            reason: payload.reason || null
+            reason: reason,
+            source: source
         }
     });
 
-    // If authenticated, load projects and check token status
-    if (state.isAuthenticated) {
-        console.log('Requesting token status and project data');
-        if (port && port.postMessage) { // Check port and postMessage existence
-            port.postMessage({ type: 'check-token' });
-            port.postMessage({ type: 'get-jira-projects' }); // This should trigger 'jira-projects' response
-            // not call fetchJiraProjects
+    // Only request data if auth state actually changed to true OR
+    // this is an initial auth status update (indicated by source)
+    const isInitialUpdate = source === 'initial-connection' || source === 'storage-init';
+
+    if ((authStateChanged && state.isAuthenticated) || (isInitialUpdate && state.isAuthenticated)) {
+        console.log(`Requesting data because auth ${authStateChanged ? 'state changed' : 'is initial update'}`);
+
+        // Ensure we have a valid port connection before proceeding
+        if (!port || !port.postMessage) {
+            console.warn('Port not connected or invalid - attempting to reconnect first');
+            try {
+                // Try to reconnect first
+                connectToBackground();
+
+                // Give it a moment to establish the connection
+                setTimeout(() => {
+                    if (port && port.postMessage) {
+                        console.log('Successfully reconnected port, proceeding with data requests');
+                        requestAuthenticatedData();
+                    } else {
+                        console.error('Failed to reconnect port after attempt');
+                    }
+                }, 500);
+            } catch (e) {
+                console.error('Error attempting to reconnect:', e);
+            }
         } else {
-            console.warn('Cannot request data - port not connected or invalid');
-            connectToBackground(); // Attempt to reconnect
+            // Port is valid, proceed directly
+            requestAuthenticatedData();
         }
-    } else {
+    } else if (!state.isAuthenticated) {
         // If not authenticated, clear projects and tasks
         handleProjectsUpdate([]); // Clear projects dropdown
         handleTasksUpdate([]);    // Clear tasks list
+    } else {
+        console.log('Skipping data requests - auth state unchanged or already handled');
+    }
+}
+
+// Helper function to encapsulate authenticated data requests
+function requestAuthenticatedData() {
+    if (!port || !port.postMessage) {
+        console.error('Port still invalid in requestAuthenticatedData');
+        return;
+    }
+
+    const now = Date.now();
+
+    // Smart debouncing for token checks - shorter for recent auth events
+    const lastTokenCheck = state.lastTokenCheck || 0;
+    const tokenCheckElapsed = now - lastTokenCheck;
+
+    // Use shorter debounce if we recently completed authentication
+    const recentAuthTime = state.lastAuthTime || 0;
+    const timeSinceAuth = now - recentAuthTime;
+    const debounceTime = timeSinceAuth < 30000 ? 2000 : 8000; // 2s if recent auth, 8s otherwise
+
+    if (tokenCheckElapsed > debounceTime) {
+        console.log(`Checking token status (${Math.round(tokenCheckElapsed / 1000)}s since last check, using ${debounceTime / 1000}s debounce)`);
+        state.lastTokenCheck = now;
+        port.postMessage({ type: 'check-token' });
+    } else {
+        console.log(`Skipping token check - last check was ${Math.round(tokenCheckElapsed / 1000)}s ago (${debounceTime / 1000}s debounce)`);
+    }
+
+    // Smart debouncing for projects - shorter for recent auth events
+    const lastProjectsCheck = state.lastProjectsCheck || 0;
+    const projectsCheckElapsed = now - lastProjectsCheck;
+    const projectsDebounceTime = timeSinceAuth < 30000 ? 1000 : 4000; // 1s if recent auth, 4s otherwise
+
+    if (projectsCheckElapsed > projectsDebounceTime) {
+        console.log(`Fetching projects (${Math.round(projectsCheckElapsed / 1000)}s since last check, using ${projectsDebounceTime / 1000}s debounce)`);
+        state.lastProjectsCheck = now;
+        port.postMessage({ type: 'get-jira-projects' });
+    } else {
+        console.log(`Skipping projects check - last check was ${Math.round(projectsCheckElapsed / 1000)}s ago (${projectsDebounceTime / 1000}s debounce)`);
     }
 }
 
@@ -384,22 +596,51 @@ function handleTokenStatusUpdate(tokenData) {
         return;
     }
 
-    // Check multiple indicators of validity
-    const isValid = tokenData.valid === true ||
+    // More robust check for token validity that handles different token data formats
+    const isValid = (
+        // Check explicit validity flag
+        tokenData.valid === true ||
+        // Check known status values
         tokenData.status === 'active' ||
-        (typeof tokenData.expires_in_seconds === 'number' && tokenData.expires_in_seconds > 0);
+        // Check expiration time 
+        (typeof tokenData.expires_in_seconds === 'number' && tokenData.expires_in_seconds > 0) ||
+        // Check expires_at timestamp if available
+        (tokenData.expires_at && new Date(tokenData.expires_at).getTime() > Date.now())
+    );
 
-    // Update authentication state if token is invalid
+    // Update authentication state if token is invalid but UI shows authenticated
     if (!isValid && state.isAuthenticated) {
         console.warn('Token is invalid but UI shows authenticated - correcting UI state. TokenData:', tokenData);
         handleAuthStatusUpdate({ isAuthenticated: false, reason: "Token invalid" });
-        // No return here, still update footer status to "Invalid token"
-    }
-    // Update token status in footer based on validity
+    }    // Update token status in footer based on validity
     if (isValid) {
-        // Calculate expiration time
-        const expiresIn = tokenData.expires_in_seconds ||
-            (tokenData.expiresAt ? Math.floor((new Date(tokenData.expiresAt) - Date.now()) / 1000) : 3600);
+        // Calculate expiration time - try various token data formats
+        let expiresIn = 0;
+        let expiresAtDate = null;
+
+        if (typeof tokenData.expires_in_seconds === 'number') {
+            expiresIn = tokenData.expires_in_seconds;
+        } else if (tokenData.expires_at) {
+            // Calculate from expires_at timestamp
+            const expiresAtTime = new Date(tokenData.expires_at).getTime();
+            if (!isNaN(expiresAtTime)) {
+                expiresIn = Math.floor((expiresAtTime - Date.now()) / 1000);
+                expiresAtDate = new Date(expiresAtTime);
+            }
+        } else if (tokenData.expiresAt) {
+            // Alternative property name
+            const expiresAtTime = new Date(tokenData.expiresAt).getTime();
+            if (!isNaN(expiresAtTime)) {
+                expiresIn = Math.floor((expiresAtTime - Date.now()) / 1000);
+                expiresAtDate = new Date(expiresAtTime);
+            }
+        } else if (tokenData.expires_in) {
+            // OAuth standard property
+            expiresIn = parseInt(tokenData.expires_in);
+        } else {
+            // Default fallback
+            expiresIn = 3600;
+        }
 
         if (expiresIn <= 0) {
             elements.tokenStatus.innerHTML = '<span style="color: var(--error-color);">Token expired</span>';
@@ -407,7 +648,7 @@ function handleTokenStatusUpdate(tokenData) {
 
             // Token is expired, update authentication state
             if (state.isAuthenticated) {
-                handleAuthStatusUpdate({ isAuthenticated: false });
+                handleAuthStatusUpdate({ isAuthenticated: false, reason: "Token expired" });
             }
             return;
         }
@@ -424,16 +665,25 @@ function handleTokenStatusUpdate(tokenData) {
 
         elements.tokenStatus.innerHTML = `<span style="color: var(--success-color);">Valid (expires in ${expirationText})</span>`;
 
+        // If we have user info in the token data, update the display
+        if (tokenData.user && tokenData.user.displayName) {
+            // Update user display with name from token data
+            elements.userDisplay.textContent = `Logged in as: ${tokenData.user.displayName}`;
+        }
+
         // If we have userId in the token data, make sure it's saved
         if (tokenData.user_id) {
             console.log(`Token contains user ID: ${tokenData.user_id}`);
-            // We could send this back to background.js if needed
-            port.postMessage({
-                type: 'update-user-id',
-                payload: { userId: tokenData.user_id }
-            });
+            // Send this back to background.js for consistency
+            if (port && port.postMessage) {
+                port.postMessage({
+                    type: 'update-user-id',
+                    payload: { userId: tokenData.user_id }
+                });
+            }
         }
     } else {
+        // Token is invalid
         elements.tokenStatus.innerHTML = '<span style="color: var(--error-color);">Invalid token</span>';
     }
 }
@@ -441,18 +691,73 @@ function handleTokenStatusUpdate(tokenData) {
 /**
  * Handle projects data update
  */
-function handleProjectsUpdate(projects) {
-    state.projects = projects;
+function handleProjectsUpdate(data) {
+    console.log('Projects update received:', typeof data, data);
+
+    // Handle cases where data might be an object with error and projects properties
+    let projectsArray = [];
+
+    // Handle different data formats
+    if (Array.isArray(data)) {
+        // Direct array of projects
+        console.log('Projects data is a direct array of length:', data.length);
+        projectsArray = data;
+    } else if (data && data.projects && Array.isArray(data.projects)) {
+        // Object with projects array property
+        console.log('Projects data has projects array of length:', data.projects.length);
+        projectsArray = data.projects;
+    } else if (data && data.error) {
+        // Error case - log and show empty projects
+        console.warn('Error loading projects:', data.error);
+        projectsArray = [];
+    } else if (data == null || data === undefined) {
+        // Null/undefined case - use empty array
+        console.warn('Received null or undefined projects data');
+        projectsArray = [];
+    } else {
+        // Unknown format - try to handle gracefully
+        console.error('Received projects data in unknown format:', typeof data, data);
+        try {
+            // Attempt to extract any array-like data
+            if (typeof data === 'object') {
+                // Try to find any array property that might contain projects
+                const possibleArrays = Object.values(data).filter(val => Array.isArray(val));
+                if (possibleArrays.length > 0) {
+                    // Use the first array found
+                    projectsArray = possibleArrays[0];
+                    console.log('Found potential projects array with length:', projectsArray.length);
+                } else {
+                    projectsArray = [];
+                }
+            } else {
+                projectsArray = [];
+            }
+        } catch (e) {
+            console.error('Failed to process projects data:', e);
+            projectsArray = [];
+        }
+    }// Update state with processed array
+    console.log('Setting projects state with array of length:', projectsArray ? projectsArray.length : 0);
+    state.projects = projectsArray;
 
     // Update project filter
     elements.projectFilter.innerHTML = '<option value="all">All Projects</option>';
 
-    projects.forEach(project => {
-        const option = document.createElement('option');
-        option.value = project.key;
-        option.textContent = project.name;
-        elements.projectFilter.appendChild(option);
-    });
+    // Only try to iterate if we have an array
+    if (Array.isArray(projectsArray)) {
+        console.log('Populating project filter with', projectsArray.length, 'projects');
+        projectsArray.forEach(project => {
+            // Defensive check that project is an object with needed properties
+            if (project && project.key && project.name) {
+                const option = document.createElement('option');
+                option.value = project.key;
+                option.textContent = project.name;
+                elements.projectFilter.appendChild(option);
+            } else {
+                console.warn('Skipping invalid project item:', project);
+            }
+        });
+    }
 
     // Load tasks with current filters
     loadTasks();
@@ -464,14 +769,56 @@ function handleProjectsUpdate(projects) {
 function loadTasks() {
     if (!state.isAuthenticated) return;
 
+    // Enhanced debounce to prevent multiple rapid requests
+    const now = Date.now();
+    const lastTasksCheck = state.lastTasksCheck || 0;
+    const tasksCheckElapsed = now - lastTasksCheck;
+
+    if (tasksCheckElapsed < 3000) { // 3 seconds debounce (increased from 2)
+        console.log(`Skipping tasks request - last check was ${Math.round(tasksCheckElapsed / 1000)}s ago`);
+        return;
+    }
+
+    // Validate port connection before proceeding
+    if (!port || !port.postMessage) {
+        console.error('Port disconnected - cannot load tasks');
+        updateConnectionStatus(false, 'Connection lost');
+        // Try to reconnect
+        connectToBackground();
+        return;
+    }
+
+    // Update last check time
+    state.lastTasksCheck = now;
+
     // Show loading
     elements.tasksList.innerHTML = '<div class="loading-indicator">Loading tasks...</div>';
 
     // Get filter values
     const filters = {
         project: elements.projectFilter.value !== 'all' ? elements.projectFilter.value : null,
-        status: elements.statusFilter.value !== 'all' ? elements.statusFilter.value : null
+        status: elements.statusFilter.value !== 'all' ? elements.statusFilter.value : null,
+        userId: state.userId, // Include user ID in all task requests
+        maxResults: 50, // Limit the number of results to prevent unbounded queries
     };
+
+    // Always add a specific JQL query to prevent "Unbounded JQL" errors
+    // If we have a project filter, use that as the primary restriction
+    if (filters.project) {
+        filters.jql = `project = ${filters.project} ORDER BY updated DESC`;
+    }
+    // Otherwise use an updated date restriction
+    else {
+        filters.jql = 'updated >= -30d ORDER BY updated DESC';
+    }
+
+    // Add status to JQL if provided
+    if (filters.status) {
+        filters.jql = filters.jql.replace(' ORDER BY', ` AND status = "${filters.status}" ORDER BY`);
+    }
+
+    // Log the request for debugging
+    console.log('Requesting tasks with filters:', JSON.stringify(filters));
 
     // Request tasks from background
     port.postMessage({
@@ -483,34 +830,92 @@ function loadTasks() {
 /**
  * Handle tasks data update
  */
-function handleTasksUpdate(tasks) {
-    state.tasks = tasks;
+function handleTasksUpdate(data) {
+    // Process the tasks data in a way similar to projects
+    let tasksArray = [];
+
+    console.log('Tasks update received:', typeof data, data);
+
+    // Handle different data formats
+    if (Array.isArray(data)) {
+        // Direct array of tasks
+        console.log('Tasks data is a direct array of length:', data.length);
+        tasksArray = data;
+    } else if (data && data.tasks && Array.isArray(data.tasks)) {
+        // Object with tasks array
+        console.log('Tasks data has tasks array of length:', data.tasks.length);
+        tasksArray = data.tasks;
+    } else if (data && data.error) {
+        // Error case - log and show empty tasks
+        console.warn('Error loading tasks:', data.error);
+        tasksArray = [];
+    } else if (data == null || data === undefined) {
+        // Null/undefined case
+        console.warn('Received null or undefined tasks data');
+        tasksArray = [];
+    } else {
+        // Unknown format - try to handle gracefully
+        console.error('Received tasks data in unexpected format:', typeof data, data);
+        try {
+            // Try to extract array data from any object
+            if (typeof data === 'object') {
+                // Look for any array property that might contain tasks
+                const possibleArrays = Object.values(data).filter(val => Array.isArray(val));
+                if (possibleArrays.length > 0) {
+                    // Use the first array found
+                    tasksArray = possibleArrays[0];
+                    console.log('Found potential tasks array with length:', tasksArray.length);
+                } else {
+                    tasksArray = [];
+                }
+            } else {
+                tasksArray = [];
+            }
+        } catch (e) {
+            console.error('Failed to extract tasks data:', e);
+            tasksArray = [];
+        }
+    }// Update state
+    console.log('Setting tasks state with array of length:', tasksArray ? tasksArray.length : 0);
+    state.tasks = tasksArray;
 
     // Update tasks list
     elements.tasksList.innerHTML = '';
 
-    if (tasks.length === 0) {
+    if (!tasksArray || tasksArray.length === 0) {
+        console.log('No tasks to display, showing empty state');
         elements.tasksList.innerHTML = '<div class="empty-state">No tasks found</div>';
         return;
     }
 
+    console.log('Rendering', tasksArray.length, 'tasks in the UI');
+
     // Create task elements
-    tasks.forEach(task => {
+    tasksArray.forEach(task => {
+        if (!task) {
+            console.warn('Skipping null or undefined task in array');
+            return; // Skip null or undefined tasks
+        }
+
+        // Check if the task has the required properties
+        if (!task.key) {
+            console.warn('Task missing key property:', task);
+            return; // Skip this task
+        }
+
         const taskElement = document.createElement('div');
         taskElement.className = 'task-item';
         taskElement.innerHTML = `
             <div class="task-header">
                 <span class="task-key">${task.key}</span>
-                <span class="task-status">${task.status}</span>
+                <span class="task-status">${task.status || 'Unknown'}</span>
             </div>
-            <div class="task-summary">${task.summary}</div>
+            <div class="task-summary">${task.summary || 'No summary'}</div>
             <div class="task-meta">
                 ${task.assignee ? `<span>Assignee: ${task.assignee}</span>` : ''}
                 ${task.dueDate ? `<span>Due: ${formatDate(task.dueDate)}</span>` : ''}
             </div>
-        `;
-
-        elements.tasksList.appendChild(taskElement);
+        `; elements.tasksList.appendChild(taskElement);
     });
 }
 
@@ -624,3 +1029,32 @@ function formatDate(dateString) {
 
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', initialize);
+
+/**
+ * Handle user ID update from background
+ */
+function handleUserIdUpdate(data) {
+    console.log('User ID update received:', data);
+
+    if (!data || !data.userId) {
+        console.warn('Received invalid user ID update data:', data);
+        return;
+    }
+
+    // Store the user ID locally
+    state.userId = data.userId;
+    console.log('Updated local user ID to:', state.userId);
+
+    // We could update UI if needed, but typically this is just for making API requests
+    // Add user ID to any relevant data in the footer for debugging
+    const debugLabel = document.getElementById('user-id-debug');
+    if (debugLabel) {
+        debugLabel.textContent = `User ID: ${state.userId}`;
+    }
+
+    // Save to local storage for persistence
+    chrome.storage.local.set({
+        savedUserId: data.userId,
+        userIdTimestamp: Date.now()
+    });
+}

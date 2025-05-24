@@ -492,13 +492,3 @@ async def logout(
             status_code=500,
             detail=f"Failed to logout: {str(e)}"
         )
-
-
-@router.post("/logout")
-async def logout_post(
-    user_id: str,
-    db: Session = Depends(get_db)
-):
-    """Logout and invalidate OAuth token for a user via POST request"""
-    # This simply calls the same implementation as the GET endpoint
-    return await logout(user_id=user_id, db=db)

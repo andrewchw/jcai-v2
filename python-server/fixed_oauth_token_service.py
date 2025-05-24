@@ -13,8 +13,6 @@ Features:
 - Event notification system
 - Comprehensive logging
 - Retry mechanisms for failed refreshes
-
-For implementation in Phase 1, Day 8-9 (May 21-22, 2025)
 """
 
 import os
@@ -52,19 +50,10 @@ class TokenRefreshEvent:
         self.token_info = token_info or {}  # Masked token info
 
 class OAuthTokenService:
-    """Service to manage OAuth tokens with background refresh"""
     # Class-level flag to track if any refresh thread is running
     _refresh_thread_running = False
-    # Singleton instance to prevent multiple services
-    _instance = None
-    _lock_singleton = threading.Lock()
     
-    def __new__(cls, *args, **kwargs):
-        """Singleton pattern to ensure only one token service instance"""
-        with cls._lock_singleton:
-            if cls._instance is None:
-                cls._instance = super(OAuthTokenService, cls).__new__(cls)
-            return cls._instance
+    """Service to manage OAuth tokens with background refresh"""
     
     def __init__(
         self,
@@ -87,10 +76,6 @@ class OAuthTokenService:
             refresh_threshold: When to refresh token before expiration (seconds)
             max_retries: Maximum number of retry attempts for refresh
         """
-        # Only initialize once due to singleton pattern
-        if hasattr(self, '_initialized'):
-            return
-            
         self.client_id = client_id
         self.client_secret = client_secret
         self.token_url = token_url
@@ -117,18 +102,15 @@ class OAuthTokenService:
             "next_scheduled_check": None
         }
         
-        # Mark as initialized
-        self._initialized = True
-    
     def start(self):
         """Start the background token refresh thread"""
         # Class-level check to prevent multiple instances across different objects
         if OAuthTokenService._refresh_thread_running:
-            logger.debug("OAuth token refresh service already running - using existing instance")
+            logger.warning("Another OAuth token refresh service is already running")
             return
             
         if self._refresh_thread and self._refresh_thread.is_alive():
-            logger.debug("Token refresh thread already running for this instance")
+            logger.warning("Token refresh thread already running")
             return
             
         self._stop_event.clear()
@@ -340,7 +322,8 @@ class OAuthTokenService:
     def invalidate_token(self) -> bool:
         """Invalidate the current OAuth token
         
-        This method will delete the stored token file and reset any related state.        Use this when logging out a user or when a token is known to be invalid.
+        This method will delete the stored token file and reset any related state.
+        Use this when logging out a user or when a token is known to be invalid.
         
         Returns:
             bool: True if successful, False otherwise

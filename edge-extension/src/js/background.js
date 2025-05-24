@@ -5,7 +5,10 @@
 
 // Constants
 const API_BASE_URL = 'http://localhost:8000/api';
-const TOKEN_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes
+const TOKEN_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes (default)
+const FAST_TOKEN_CHECK_INTERVAL = 30 * 1000; // 30 seconds (right after auth)
+const FAST_CHECK_DURATION = 5 * 60 * 1000; // Use fast checking for 5 minutes after auth
+const DEBUG_MODE = true; // Enable for more verbose logging
 
 // Generate a unique user ID for this browser instance
 const USER_ID = `edge-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
@@ -16,7 +19,8 @@ let tokenState = {
     tokenData: null,
     lastChecked: null,
     userId: USER_ID,
-    userInfo: null // Added to store user information
+    userInfo: null, // Added to store user information
+    lastAuthTime: null // Track when authentication was completed for smart intervals
 };
 
 // Initialize the extension
@@ -63,16 +67,23 @@ async function initialize() {
  * @param {*} port - The connection port
  */
 function handleSidebarConnection(port) {
-    console.log('Sidebar connected');
-
-    // Verify we have the latest authentication state before sending to sidebar
+    console.log('Sidebar connected');    // Verify we have the latest authentication state before sending to sidebar
     try {
+        // Ensure the port is valid before posting
+        if (!port || typeof port.postMessage !== 'function') {
+            console.error('Invalid port object when sending initial auth state');
+            return;
+        }
+
         // Send initial token state
         port.postMessage({
             type: 'auth-status',
             payload: {
-                isAuthenticated: tokenState.isAuthenticated,
-                userInfo: tokenState.userInfo // Send user info
+                isAuthenticated: tokenState.isAuthenticated === true, // Force boolean
+                userInfo: tokenState.userInfo, // Send user info
+                status: tokenState.isAuthenticated ? 'authenticated' : 'unauthenticated',
+                timestamp: Date.now(), // Include timestamp for debugging
+                source: 'initial-connection'
             }
         });
 
@@ -87,54 +98,99 @@ function handleSidebarConnection(port) {
         console.log('Sent initial token state to sidebar:', tokenState.isAuthenticated);
     } catch (err) {
         console.error('Error sending initial token state to sidebar:', err);
-    }
-
-    // Listen for messages from sidebar
+    }    // Listen for messages from sidebar
     port.onMessage.addListener(async (message) => {
         console.log('Received message from sidebar:', message);
+
+        // Add validation for message
+        if (!message || typeof message !== 'object') {
+            console.error('Invalid message received from sidebar:', message);
+            return;
+        }
 
         try {
             switch (message.type) {
                 case 'login':
                     initiateLogin();
-                    break;
-
-                case 'logout':
+                    break; case 'logout':
                     await performLogout();
                     port.postMessage({
                         type: 'auth-status',
                         payload: {
                             isAuthenticated: false,
-                            userInfo: null // Clear user info on logout
+                            userInfo: null, // Clear user info on logout
+                            timestamp: Date.now(),
+                            action: 'logout'
                         }
                     });
-                    break;
-
-                case 'check-token':
-                    const tokenStatus = await checkOAuthToken(); // This function will be updated to fetch/include user info
-                    port.postMessage({
-                        type: 'token-status',
-                        payload: tokenStatus || { valid: false, status: "unknown" }
-                    });
-                    break; case 'get-jira-projects':
-                    const projects = await fetchJiraProjects();
-                    port.postMessage({
-                        type: 'jira-projects',
-                        payload: projects
-                    });
-
-                    // If there was an error but we're still authenticated, explain this to the UI
-                    if (projects.error && tokenState.isAuthenticated) {
+                    break; case 'check-token':
+                    try {
+                        console.log('Received check-token request from sidebar');
+                        const tokenStatus = await checkOAuthToken(); // This function will be updated to fetch/include user info
                         port.postMessage({
-                            type: 'jira-api-status',
+                            type: 'token-status',
+                            payload: tokenStatus || { valid: false, status: "unknown", timestamp: new Date().toISOString() }
+                        });
+
+                        // Also update auth status since this might be a recovery request
+                        if (tokenStatus) {
+                            const isAuthenticated = tokenStatus.valid === true ||
+                                tokenStatus.status === "active" ||
+                                (tokenStatus.expires_in_seconds && tokenStatus.expires_in_seconds > 0);
+
+                            port.postMessage({
+                                type: 'auth-status',
+                                payload: {
+                                    isAuthenticated: isAuthenticated,
+                                    source: 'token-check',
+                                    timestamp: Date.now(),
+                                    userInfo: tokenStatus.user
+                                }
+                            });
+                        }
+                    } catch (error) {
+                        console.error('Error checking token:', error);
+                        port.postMessage({
+                            type: 'token-status',
                             payload: {
-                                isAuthenticated: true,
-                                jiraApiAccessible: false,
-                                error: projects.error
+                                valid: false,
+                                status: "error",
+                                error: error.message,
+                                timestamp: new Date().toISOString()
                             }
                         });
                     }
-                    break; case 'get-jira-tasks':
+                    break;
+
+                case 'get-jira-projects':
+                    // Only fetch projects if we're properly authenticated
+                    if (tokenState.isAuthenticated) {
+                        const projects = await fetchJiraProjects();
+                        port.postMessage({
+                            type: 'jira-projects',
+                            payload: projects
+                        });
+
+                        // If there was an error but we're still authenticated, explain this to the UI
+                        if (projects.error && tokenState.isAuthenticated) {
+                            port.postMessage({
+                                type: 'jira-api-status',
+                                payload: {
+                                    isAuthenticated: true,
+                                    jiraApiAccessible: false,
+                                    error: projects.error
+                                }
+                            });
+                        }
+                    } else {
+                        port.postMessage({
+                            type: 'jira-projects',
+                            payload: { error: 'Not authenticated', projects: [] }
+                        });
+                    }
+                    break;
+
+                case 'get-jira-tasks':
                     const tasks = await fetchJiraTasks(message.payload);
                     port.postMessage({
                         type: 'jira-tasks',
@@ -183,7 +239,140 @@ function handleSidebarConnection(port) {
         }
     });
 
-    // Handle disconnect
+    // Handle disconnect    // Function to fetch Jira projects
+    async function fetchJiraProjects() {
+        try {
+            // Only fetch if we're authenticated
+            if (!tokenState.isAuthenticated) {
+                console.log('Not authenticated, skipping project fetch');
+                return { error: 'Not authenticated', projects: [] };
+            }
+
+            console.log(`Fetching projects for user ID: ${tokenState.userId}`);
+            const response = await fetch(`${API_BASE_URL}/jira/v2/projects?user_id=${encodeURIComponent(tokenState.userId)}`);
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`Failed to fetch projects: ${response.status} - ${errorText}`);
+                throw new Error(`Failed to fetch projects: ${response.status} - ${errorText}`);
+            }
+
+            const data = await response.json();
+            console.log('Raw projects API response:', data);
+
+            // Ensure data is formatted correctly before returning
+            if (Array.isArray(data)) {
+                // If the API returns an array directly, wrap it in the expected format
+                console.log(`Returning ${data.length} projects in wrapped format`);
+                return { projects: data };
+            } else if (data && typeof data === 'object') {
+                // If it's already an object, make sure it has a projects array
+                if (!data.projects) {
+                    console.log('API response is an object but missing projects array, creating empty array');
+                    data.projects = [];
+                } else if (!Array.isArray(data.projects)) {
+                    // If projects exists but isn't an array, fix it
+                    console.warn('API returned projects that is not an array:', data.projects);
+                    data.projects = Array.isArray(data.projects) ? data.projects : [];
+                }
+                console.log(`Returning object with ${data.projects.length} projects`);
+                return data;
+            }
+
+            // Fallback if we received unexpected data
+            console.warn('Received unexpected data format from projects API:', data);
+            return { error: 'Unexpected data format', projects: [] };
+        } catch (error) {
+            console.error('Error fetching projects:', error);
+            return { error: error.message, projects: [] };
+        }
+    }    // Function to fetch Jira tasks
+    async function fetchJiraTasks(filters = {}) {
+        try {
+            // Only fetch if we're authenticated
+            if (!tokenState.isAuthenticated) {
+                console.log('Not authenticated, skipping tasks fetch');
+                return { error: 'Not authenticated', tasks: [] };
+            }
+
+            // Construct the URL with filters and user_id
+            const url = new URL(`${API_BASE_URL}/jira/v2/issues`);
+            url.searchParams.append('user_id', encodeURIComponent(tokenState.userId));
+
+            // Always add a limit to prevent unbounded queries
+            url.searchParams.append('max_results', filters.maxResults || '50');
+
+            // Handle JQL parameter - this is the most important part for preventing "Unbounded JQL" errors
+            if (filters.jql) {
+                // Use the JQL directly from the filters if provided
+                url.searchParams.append('jql', filters.jql);
+                console.log('Using JQL from filters:', filters.jql);
+            } else {
+                // If no explicit JQL, construct one based on filters
+                let jql = '';
+
+                if (filters.project) {
+                    jql = `project = ${filters.project}`;
+
+                    if (filters.status) {
+                        jql += ` AND status = "${filters.status}"`;
+                    }
+                } else {
+                    // If no project filter, use date restriction
+                    jql = 'updated >= -30d';
+
+                    if (filters.status) {
+                        jql += ` AND status = "${filters.status}"`;
+                    }
+                }
+
+                // Always add ordering
+                jql += ' ORDER BY updated DESC';
+
+                url.searchParams.append('jql', jql);
+                console.log('Constructed JQL:', jql);
+            }
+
+            // These individual parameters are used by the server if JQL is not provided
+            // Keep them for backward compatibility, but our primary filtering is now via JQL
+            if (filters.project) url.searchParams.append('project', filters.project);
+            if (filters.status) url.searchParams.append('status', filters.status);
+
+            console.log(`Fetching Jira tasks with filters:`, filters);
+            console.log(`Full request URL: ${url.toString()}`);
+            const response = await fetch(url);
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Failed to fetch tasks: ${response.status} - ${errorText}`);
+            }
+
+            const data = await response.json();
+
+            // Ensure data is formatted correctly before returning
+            if (Array.isArray(data)) {
+                // If the API returns an array directly, wrap it in the expected format
+                return { tasks: data };
+            } else if (data && typeof data === 'object') {
+                // If it's already an object, make sure it has a tasks array
+                if (!data.tasks) {
+                    data.tasks = [];
+                } else if (!Array.isArray(data.tasks)) {
+                    // If tasks exists but isn't an array, fix it
+                    console.warn('API returned tasks that is not an array:', data.tasks);
+                    data.tasks = Array.isArray(data.tasks) ? data.tasks : [];
+                }
+                return data;
+            }
+
+            // Fallback if we received unexpected data
+            console.warn('Received unexpected data format from tasks API:', data);
+            return { error: 'Unexpected data format', tasks: [] };
+        } catch (error) {
+            console.error('Error fetching tasks:', error);
+            return { error: error.message, tasks: [] };
+        }
+    }
     port.onDisconnect.addListener(() => {
         console.log('Sidebar disconnected');
     });
@@ -272,12 +461,10 @@ function initiateLogin() {
                         notifySidebarsAboutAuth(true);
 
                         // Then start full async processing
-                        handleSuccessfulLogin();
-
-                        // Close the auth tab after a short delay
+                        handleSuccessfulLogin();                        // Close the auth tab after a shorter delay for better user experience
                         setTimeout(() => {
                             chrome.tabs.remove(tabId);
-                        }, 2000);
+                        }, 1000); // Reduced from 2000ms to 1000ms
                     } else if (isSetupExample) {
                         // This is the setup example flow, wait for the success parameter to be added
                         console.log('Setup example flow detected, waiting for completion');
@@ -293,12 +480,10 @@ function initiateLogin() {
                             payload: {
                                 message: 'Authentication failed. Please try again.'
                             }
-                        });
-
-                        // Close the auth tab
+                        });                        // Close the auth tab
                         setTimeout(() => {
                             chrome.tabs.remove(tabId);
-                        }, 2000);
+                        }, 1000); // Optimized to 1 second for better UX
                     }
                 }
             });
@@ -357,13 +542,12 @@ async function handleSuccessfulLogin() {
         // The logic in checkOAuthToken will handle preserving existing tokenState.userInfo if its call is the one without displayName.
         // This specific spot: if fetchUserInfo is null, tokenState.userInfo is what checkOAuthToken left it as, or null.
     }
-
-
     // Update tokenState with all information
     tokenState = {
         isAuthenticated: true,
         tokenData: tokenStatus || { status: "active", valid: true }, // Use fresh token data
         lastChecked: new Date().toISOString(),
+        lastAuthTime: Date.now(), // Track authentication time for smart intervals
         userId: currentUserId,
         userInfo: tokenState.userInfo // Persist the consolidated user info
     };
@@ -493,6 +677,44 @@ async function notifySidebarsAboutAuth(isAuthenticated, userInfo = null) {
 }
 
 /**
+ * Notify all sidebars about user ID changes
+ * @param {string} userId - The user ID to notify about
+ */
+async function notifySidebarsAboutUserId(userId) {
+    console.log('Notifying all sidebars about user ID:', userId);
+
+    // Method 1: Use runtime messaging (works for non-connected panels)
+    try {
+        chrome.runtime.sendMessage({
+            type: 'user-id-update',
+            payload: {
+                userId: userId,
+                timestamp: Date.now()
+            }
+        });
+        console.log('Sent user ID update via runtime.sendMessage');
+    } catch (err) {
+        console.warn('Failed to send user ID via runtime.sendMessage:', err);
+    }
+
+    // Method 2: Use connected sidebars
+    for (const connection of sidebarConnections) {
+        try {
+            connection.postMessage({
+                type: 'user-id-update',
+                payload: {
+                    userId: userId,
+                    timestamp: Date.now()
+                }
+            });
+            console.log('Sent user ID update via sidebar connection');
+        } catch (err) {
+            console.warn('Failed to send user ID via sidebar connection:', err);
+        }
+    }
+}
+
+/**
  * Check OAuth token status
  * @param {Object} options - Options for token check
  * @param {boolean} options.forceCheck - Force a check even if recently checked
@@ -511,12 +733,11 @@ async function checkOAuthToken(options = {}) {
         if (!forceCheck && tokenState.tokenData && timeSinceLastCheck < 30000) {
             console.log(`Using cached token status, last checked ${timeSinceLastCheck}ms ago`);
             return tokenState.tokenData;
-        }
-
-        // Ensure we have a valid user ID before making the request
+        }        // Ensure we have a valid user ID before making the request
         if (!tokenState.userId) {
-            console.error('Missing user ID when checking token status, setting default');
-            tokenState.userId = USER_ID;
+            console.warn('Missing user ID when checking token status, generating temporary ID');
+            // Generate a random user ID if none exists
+            tokenState.userId = 'temp-' + crypto.randomUUID();
             await chrome.storage.local.set({ tokenState });
         }
 
@@ -525,24 +746,94 @@ async function checkOAuthToken(options = {}) {
         // Create a promise that rejects after timeout to prevent long hanging requests
         const timeoutPromise = new Promise((_, reject) => {
             setTimeout(() => reject(new Error(`Token check timed out after ${timeoutMs}ms`)), timeoutMs);
-        });
+        });        // Create the actual fetch promise with all required parameters
+        const tokenStatusUrl = new URL(`${API_BASE_URL}/auth/oauth/v2/token/status`);
 
-        // Create the actual fetch promise
-        const fetchPromise = fetch(`${API_BASE_URL}/auth/oauth/v2/token/status?user_id=${encodeURIComponent(tokenState.userId)}`);
+        // CRITICAL FIX: user_id is a required parameter for the multi-user endpoint
+        // Ensure it's always included and properly encoded
+        if (!tokenState.userId) {
+            console.warn('Missing user ID when checking token status, generating temporary ID');
+            tokenState.userId = 'temp-' + crypto.randomUUID();
+            // Save immediately to ensure consistency throughout the app
+            await chrome.storage.local.set({ tokenState });
+            // Also notify sidebars about the new user ID
+            notifySidebarsAboutUserId(tokenState.userId);
+        }
 
-        // Race the fetch against the timeout
+        // Add user_id as a query parameter (required by the API)
+        tokenStatusUrl.searchParams.append('user_id', tokenState.userId);
+        console.log(`Token status request including user_id: ${tokenState.userId}`);
+
+        // Add additional validation parameters if needed
+        if (tokenState.tokenData && tokenState.tokenData.access_token) {
+            // Only include access_token reference if we have one (not the full token for security)
+            tokenStatusUrl.searchParams.append('has_token', 'true');
+        }
+
+        console.log(`Requesting token status from: ${tokenStatusUrl.toString()}`);
+        const fetchPromise = fetch(tokenStatusUrl.toString(), {
+            headers: {
+                'Accept': 'application/json',
+                'X-Client-Version': chrome.runtime.getManifest().version || '1.0.0',
+                'X-Client-ID': tokenState.userId
+            }
+        });// Race the fetch against the timeout
         const response = await Promise.race([fetchPromise, timeoutPromise]);
 
         if (!response.ok) {
             console.error(`Token status check failed with status: ${response.status}`);
+            let errorData = null;
 
+            // Try to get more detailed error information
+            try {
+                errorData = await response.json();
+                console.error('Error details:', errorData);
+            } catch (e) {
+                console.error('Could not parse error response:', e);
+            }            // Handle specific error codes
+            if (response.status === 422) {
+                console.warn('Validation error when checking token status. The server might be expecting different parameters.');
+                console.log('Request URL was:', tokenStatusUrl.toString());
+                console.log('User ID value:', tokenState.userId);
+
+                // Attempt to recreate a valid user ID and try again (only once)
+                if (options.retryAfterValidationError !== true) {
+                    console.log('Attempting to fix validation error by regenerating user ID and retrying...');
+                    tokenState.userId = 'temp-' + crypto.randomUUID();
+                    await chrome.storage.local.set({ tokenState });
+
+                    // Recursive call with retry flag to prevent infinite loop
+                    return checkOAuthToken({
+                        ...options,
+                        retryAfterValidationError: true,
+                        forceCheck: true
+                    });
+                }
+
+                // Return an error response if we've already tried to fix the validation issues
+                return {
+                    valid: false,
+                    status: "unknown",
+                    error: "validation_error",
+                    message: errorData?.detail || "Validation error when checking token",
+                    timestamp: new Date().toISOString()
+                };
+            }
             // In case of a 401/403 Unauthorized response, mark as not authenticated
-            if (response.status === 401 || response.status === 403) {
+            else if (response.status === 401 || response.status === 403) {
                 console.log('Received unauthorized response, marking as not authenticated');
                 tokenState.isAuthenticated = false;
                 tokenState.userInfo = null; // Clear user info on auth failure
                 await chrome.storage.local.set({ tokenState });
                 await notifySidebarsAboutAuth(false);
+
+                return {
+                    valid: false,
+                    status: "unauthorized",
+                    error: "unauthorized",
+                    message: "Authentication required",
+                    timestamp: new Date().toISOString()
+                };
             } else {
                 // For other errors, we might not invalidate auth immediately,
                 // but we won't have new token data.
@@ -550,14 +841,25 @@ async function checkOAuthToken(options = {}) {
                 tokenState.userInfo = null; // Clear user info on error
                 await chrome.storage.local.set({ tokenState }); // Save updated state
                 await notifySidebarsAboutAuth(tokenState.isAuthenticated, null); // Notify UI, keep current auth state if not 401/403
-            }
-            throw new Error(`Failed to check token status: ${response.status} ${response.statusText}`);
-        }
 
-        const data = await response.json();
+                return {
+                    valid: false,
+                    status: "error",
+                    error: `http_${response.status}`,
+                    message: `HTTP error: ${response.status} ${response.statusText}`,
+                    timestamp: new Date().toISOString()
+                };
+            }
+        } const data = await response.json();
         console.log('Token status (detailed from /token/status):', JSON.stringify(data, null, 2));
 
-        const isActive = data && (data.status === "active" || data.valid === true || data.expires_in_seconds > 0);
+        // Explicit check for true/false to avoid truthy values
+        const isActive = data && (
+            data.status === "active" ||
+            data.valid === true ||
+            (data.expires_in_seconds && data.expires_in_seconds > 0) ||
+            (data.expires_at && new Date(data.expires_at).getTime() > Date.now())
+        );
         let newPotentialUserInfo = null;
 
         if (isActive) {
@@ -624,43 +926,163 @@ async function checkOAuthToken(options = {}) {
 }
 
 /**
- * Start periodic token checking
+ * Start periodic token checking with enhanced protection against multiple instances
  */
 function startTokenChecking() {
-    console.log('Starting periodic token checking');
+    // Use a timestamp to track when the function was called
+    const startTime = Date.now();
 
-    // Clear any existing interval
-    if (self.tokenCheckIntervalId) {
-        clearInterval(self.tokenCheckIntervalId);
+    // Store the last start time in a global variable to prevent rapid repeated calls
+    // If another call happened within the last 10 seconds, ignore this one
+    if (self.lastTokenCheckStart && (startTime - self.lastTokenCheckStart) < 10000) {
+        console.log(`Ignoring repeated token check start request (${Math.round((startTime - self.lastTokenCheckStart) / 1000)}s since last attempt)`);
+        return;
     }
 
-    // Set new interval
-    self.tokenCheckIntervalId = setInterval(async () => {
-        console.log('Checking token status...');
-        const tokenStatus = await checkOAuthToken();
+    // Update the last start time
+    self.lastTokenCheckStart = startTime;
 
-        if (tokenStatus && (tokenStatus.valid || tokenStatus.status === "active")) {
-            // Update token state
-            tokenState = {
-                ...tokenState,
-                tokenData: tokenStatus,
-                lastChecked: new Date().toISOString()
-            };
+    if (DEBUG_MODE) {
+        console.log('Starting periodic token checking...');
+        console.log('Current interval ID:', self.tokenCheckIntervalId);
+    } else {
+        console.log('Starting periodic token checking');
+    }
 
-            // Save to storage
-            await chrome.storage.local.set({ tokenState });
-
-            // Notify any open sidebars
-            chrome.runtime.sendMessage({
-                type: 'token-status',
-                payload: tokenStatus
-            });
+    // Guard against multiple token checking services running
+    if (self.tokenCheckIntervalId) {
+        if (DEBUG_MODE) {
+            console.log('Found existing token check interval (ID: ' + self.tokenCheckIntervalId + '), not starting a new one');
         } else {
-            // Token is no longer valid
-            console.log('Token is no longer valid');
-            await performLogout();
+            console.log('Token checking already active, not starting another instance');
         }
-    }, TOKEN_CHECK_INTERVAL);
+
+        // Add a protection: verify the interval is still valid by checking if it fires
+        // This handles potential edge cases where the interval ID exists but the interval itself is broken
+        try {
+            clearTimeout(self.tokenCheckIntervalId);
+            self.tokenCheckIntervalId = null;
+            console.log('Cleared potentially stale interval, will create a new one');
+        } catch (err) {
+            console.warn('Error clearing existing interval:', err);
+            return; // Exit early if we can't clear the interval
+        }
+    }    // Set new interval with smart timing based on recent authentication
+    try {
+        // Determine the interval based on how recently authentication occurred
+        const now = Date.now();
+        const timeSinceAuth = tokenState.lastAuthTime ? (now - tokenState.lastAuthTime) : Infinity;
+        const shouldUseFastInterval = timeSinceAuth < FAST_CHECK_DURATION;
+        const intervalToUse = shouldUseFastInterval ? FAST_TOKEN_CHECK_INTERVAL : TOKEN_CHECK_INTERVAL;
+
+        if (DEBUG_MODE) {
+            console.log(`Using ${shouldUseFastInterval ? 'fast' : 'normal'} token check interval: ${intervalToUse / 1000}s (auth was ${Math.round(timeSinceAuth / 1000)}s ago)`);
+        }
+
+        self.tokenCheckIntervalId = setInterval(async () => {
+            if (DEBUG_MODE) {
+                console.log(`Running periodic token check (interval ID: ${self.tokenCheckIntervalId})`);
+            } else {
+                console.log('Checking token status...');
+            }
+
+            try {
+                const tokenStatus = await checkOAuthToken();
+
+                if (tokenStatus && (tokenStatus.valid === true || tokenStatus.status === "active")) {
+                    // Update token state - explicitly check for true to avoid truthy values
+                    tokenState = {
+                        ...tokenState,
+                        isAuthenticated: true, // Explicitly set to true when token is valid
+                        tokenData: tokenStatus,
+                        lastChecked: new Date().toISOString()
+                    };
+
+                    // Save to storage
+                    await chrome.storage.local.set({ tokenState });
+
+                    // Notify any open sidebars
+                    try {
+                        chrome.runtime.sendMessage({
+                            type: 'token-status',
+                            payload: tokenStatus
+                        });
+                    } catch (msgErr) {
+                        console.warn('Error sending token status message:', msgErr);
+                    }
+
+                    // Also ensure auth-status is consistent
+                    await notifySidebarsAboutAuth(true, tokenState.userInfo);
+                } else {
+                    // Token is no longer valid
+                    if (DEBUG_MODE) {
+                        console.log('Token is no longer valid, tokenStatus:', tokenStatus);
+                    } else {
+                        console.log('Token is no longer valid');
+                    }
+                    tokenState.isAuthenticated = false; // Explicitly set to false
+                    await chrome.storage.local.set({ tokenState });
+                    await performLogout();
+                }
+            } catch (err) {
+                console.error('Error in periodic token check:', err);
+            }
+        }, intervalToUse); // Use smart interval timing
+
+        if (DEBUG_MODE) {
+            console.log(`Token checking started with interval ID: ${self.tokenCheckIntervalId} (${intervalToUse / 1000}s interval)`);
+        }
+
+        // If using fast interval, set up a timer to switch to normal interval later
+        if (shouldUseFastInterval) {
+            const timeUntilSlowdown = FAST_CHECK_DURATION - timeSinceAuth;
+            setTimeout(() => {
+                if (DEBUG_MODE) {
+                    console.log('Switching from fast to normal token checking interval');
+                }
+                stopTokenChecking();
+                startTokenChecking(); // This will now use the normal interval
+            }, timeUntilSlowdown);
+
+            if (DEBUG_MODE) {
+                console.log(`Will switch to normal interval in ${Math.round(timeUntilSlowdown / 1000)}s`);
+            }
+        }
+    } catch (err) {
+        console.error('Failed to start token checking interval:', err);
+        // Make sure we clean up any existing interval ID to avoid leaking resources
+        if (self.tokenCheckIntervalId) {
+            try {
+                clearInterval(self.tokenCheckIntervalId);
+            } catch (clearErr) {
+                console.warn('Error clearing interval during error handling:', clearErr);
+            }
+            self.tokenCheckIntervalId = null;
+        }
+    }
+}
+
+/**
+ * Stop periodic token checking
+ */
+function stopTokenChecking() {
+    if (DEBUG_MODE) {
+        console.log('Stopping periodic token checking...');
+        console.log('Previous interval ID:', self.tokenCheckIntervalId);
+    } else {
+        console.log('Stopping periodic token checking');
+    }
+
+    if (self.tokenCheckIntervalId) {
+        clearInterval(self.tokenCheckIntervalId);
+        self.tokenCheckIntervalId = null;
+
+        if (DEBUG_MODE) {
+            console.log('Token checking stopped successfully, interval cleared');
+        }
+    } else if (DEBUG_MODE) {
+        console.log('No token check interval was running');
+    }
 }
 
 /**
