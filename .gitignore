@@ -5,6 +5,9 @@ __pycache__/
 *.so
 .Python
 env/
+.mypy_cache/
+.pytest_cache/
+.cache/
 build/
 develop-eggs/
 dist/
@@ -44,6 +47,12 @@ env
 mcp-atlassian.env
 db.sqlite3
 jcai.db
+app.db
+*.db
+*.sqlite
+*.sqlite3
+oauth_token.json
+**/oauth_token.json
 .mcp-atlassian/
 dockerREADME.txt
 dockerREADME1.txt

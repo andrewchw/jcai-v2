@@ -147,19 +147,11 @@ function connectToBackground() {
             } catch (e) {
                 console.log('Error disconnecting existing port:', e);
             }
-        }
-
-        port = chrome.runtime.connect({ name: 'sidebar' });
+        } port = chrome.runtime.connect({ name: 'sidebar' });
         console.log('Connected to background script'); setupPortListeners();
 
-        // Only set up event listeners the first time
-        // Use storage or a variable to track initialization to be more resilient
-        chrome.storage.local.get(['listenersInitialized'], (result) => {
-            if (!result.listenersInitialized) {
-                setupEventListeners();
-                chrome.storage.local.set({ listenersInitialized: true });
-            }
-        });
+        // Always set up event listeners to ensure they work after extension reload
+        setupEventListeners();
 
         // Check connectivity to server
         checkServerConnectivity();
@@ -613,7 +605,7 @@ function handleTokenStatusUpdate(tokenData) {
         tokenData.valid === true ||
         // Check known status values
         tokenData.status === 'active' ||
-        // Check expiration time 
+        // Check expiration time
         (typeof tokenData.expires_in_seconds === 'number' && tokenData.expires_in_seconds > 0) ||
         // Check expires_at timestamp if available
         (tokenData.expires_at && new Date(tokenData.expires_at).getTime() > Date.now())

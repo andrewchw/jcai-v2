@@ -30,7 +30,9 @@
         z-index: 10000;
         pointer-events: none;
         transition: opacity 0.3s ease, transform 0.3s ease;
-    }    .jcai-hover-icon {
+    }
+
+    .jcai-hover-icon {
         width: 48px;
         height: 48px;
         background: none;
@@ -45,14 +47,18 @@
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         position: relative;
         overflow: visible;
-    }    .jcai-hover-icon:hover {
+    }
+
+    .jcai-hover-icon:hover {
         transform: scale(1.05);
         box-shadow: 0 6px 25px rgba(0, 0, 0, 0.2);
     }
 
     .jcai-hover-icon:active {
         transform: scale(0.95);
-    }    .jcai-icon-symbol {
+    }
+
+    .jcai-icon-symbol {
         color: white;
         font-size: 20px;
         font-weight: 600;
@@ -82,7 +88,8 @@
         transition: opacity 0.2s ease;
         backdrop-filter: blur(10px);
     }
-      .jcai-hover-icon:hover .jcai-tooltip {
+
+    .jcai-hover-icon:hover .jcai-tooltip {
         opacity: 1;
     }
 
@@ -99,7 +106,8 @@
         .jcai-hover-icon {
             width: 44px;
             height: 44px;
-        }        .jcai-icon-symbol {
+        }
+        .jcai-icon-symbol {
             font-size: 18px;
             width: 44px;
             height: 44px;
@@ -119,7 +127,9 @@
         if (hoverIcon) return;
 
         const container = document.createElement('div');
-        container.className = 'jcai-hover-container jcai-hidden'; const icon = document.createElement('div');
+        container.className = 'jcai-hover-container jcai-hidden';
+
+        const icon = document.createElement('div');
         icon.className = 'jcai-hover-icon';
 
         const symbol = document.createElement('img');
@@ -129,7 +139,9 @@
         symbol.style.width = '48px';
         symbol.style.height = '48px';
         symbol.style.objectFit = 'contain';
-        symbol.style.borderRadius = '12px';// Fallback to text if image fails to load
+        symbol.style.borderRadius = '12px';
+
+        // Fallback to text if image fails to load
         symbol.onerror = () => {
             console.log('JIRA icon image failed to load, using JC text as fallback');
             const textElement = document.createElement('div');
@@ -141,13 +153,17 @@
             textElement.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
             textElement.style.textShadow = '0 1px 2px rgba(0, 0, 0, 0.1)';
             symbol.parentNode.replaceChild(textElement, symbol);
-        }; const tooltip = document.createElement('div');
+        };
+
+        const tooltip = document.createElement('div');
         tooltip.className = 'jcai-tooltip';
         tooltip.textContent = 'Open JIRA Assistant';
 
         icon.appendChild(symbol);
         icon.appendChild(tooltip);
-        container.appendChild(icon);    // Add click handler to open sidebar
+        container.appendChild(icon);
+
+        // Add click handler to open sidebar
         icon.addEventListener('click', () => {
             try {
                 // Check if extension context is still valid
@@ -234,7 +250,6 @@
         document.addEventListener('mousemove', (e) => {
             const windowWidth = window.innerWidth;
             const mouseX = e.clientX;
-
             // Show icon when mouse is within 100px of right edge
             if (windowWidth - mouseX < 100) {
                 showIconOnInteraction();

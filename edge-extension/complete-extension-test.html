@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JIRA Assistant - Complete Extension Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 20px auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .test-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #007acc;
+        }
+
+        .step {
+            margin: 10px 0;
+            padding: 15px;
+            background: white;
+            border-radius: 6px;
+            border-left: 4px solid #28a745;
+        }
+
+        .step.critical {
+            border-left-color: #dc3545;
+            background: #fff5f5;
+        }
+
+        .step.warning {
+            border-left-color: #ffc107;
+            background: #fffef7;
+        }
+
+        .success {
+            color: #28a745;
+            font-weight: bold;
+        }
+
+        .error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+
+        .status-box {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+
+        .status-pass {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-fail {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        button {
+            background: #007acc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+
+        button:hover {
+            background: #005a9e;
+        }
+
+        .test-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        code {
+            background: #f1f3f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .console-output {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🔧 JIRA Assistant Extension - Complete Test Suite</h1>
+
+    <div class="test-section">
+        <h2>📋 Issue Resolution Summary</h2>
+        <div class="step">
+            <strong>Issue 1 - Fixed:</strong> Extension context invalidation error when reloading extension while pages
+            are open
+            <span class="status-box status-pass">RESOLVED</span>
+        </div>
+        <div class="step">
+            <strong>Issue 2 - Fixed:</strong> Tab click responsiveness issue after extension reload
+            <span class="status-box status-pass">RESOLVED</span>
+        </div>
+        <div class="step">
+            <strong>Issue 3 - Checked:</strong> Fresh database with no conflicting tokens
+            <span class="status-box status-pass">CLEAN</span>
+        </div>
+    </div>
+
+    <div class="test-grid">
+        <div class="test-section">
+            <h3>🧪 Test 1: Extension Context Fix</h3>
+            <div class="step">
+                <strong>1.</strong> Open this page with extension enabled
+            </div>
+            <div class="step">
+                <strong>2.</strong> Look for hover icon on right side
+            </div>
+            <div class="step critical">
+                <strong>3.</strong> Go to <code>chrome://extensions/</code> and reload the extension
+            </div>
+            <div class="step critical">
+                <strong>4.</strong> Return here and click the icon
+            </div>
+            <div class="step">
+                <strong>Expected:</strong> <span class="success">No console errors, icon removed gracefully</span>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>🧪 Test 2: Tab Responsiveness Fix</h3>
+            <div class="step">
+                <strong>1.</strong> Open extension sidebar/popup
+            </div>
+            <div class="step">
+                <strong>2.</strong> Try clicking "Tasks" and "Settings" tabs
+            </div>
+            <div class="step critical">
+                <strong>3.</strong> Reload extension at <code>chrome://extensions/</code>
+            </div>
+            <div class="step critical">
+                <strong>4.</strong> Open sidebar again and test tabs
+            </div>
+            <div class="step">
+                <strong>Expected:</strong> <span class="success">Tabs respond immediately after reload</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🔧 Manual Testing Tools</h2>
+        <button onclick="testExtensionContext()">Test Extension Context</button>
+        <button onclick="simulateIconClick()">Simulate Icon Click</button>
+        <button onclick="checkConsoleErrors()">Check Console Errors</button>
+        <button onclick="clearTestOutput()">Clear Output</button>
+
+        <div id="test-output" class="console-output" style="margin-top: 15px;">
+            Ready for testing...
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>✅ Success Criteria Checklist</h2>
+        <div class="step">
+            <label><input type="checkbox" id="check1"> No "Extension context invalidated" errors in console</label>
+        </div>
+        <div class="step">
+            <label><input type="checkbox" id="check2"> Hover icon removes gracefully when extension reloaded</label>
+        </div>
+        <div class="step">
+            <label><input type="checkbox" id="check3"> Tab clicks work immediately after extension reload</label>
+        </div>
+        <div class="step">
+            <label><input type="checkbox" id="check4"> Server connects successfully (multi-user mode)</label>
+        </div>
+        <div class="step">
+            <label><input type="checkbox" id="check5"> No database conflicts or token issues</label>
+        </div>
+
+        <div style="margin-top: 20px;">
+            <button onclick="calculateTestScore()">Calculate Test Score</button>
+            <div id="test-score" style="margin-top: 10px; font-size: 18px; font-weight: bold;"></div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🔍 Technical Details</h2>
+        <div class="step">
+            <strong>Fix 1 - Content Script IIFE Wrapper:</strong>
+            <code>content.js</code> now wrapped in IIFE with extension context validation
+        </div>
+        <div class="step">
+            <strong>Fix 2 - Chrome API Error Handling:</strong>
+            All <code>chrome.runtime.sendMessage</code> calls have try-catch blocks
+        </div>
+        <div class="step">
+            <strong>Fix 3 - Event Listener Initialization:</strong>
+            <code>setupEventListeners()</code> called every time, no storage-based skipping
+        </div>
+        <div class="step">
+            <strong>Fix 4 - Clean Database:</strong>
+            Fresh SQLite database with automatic table creation
+        </div>
+    </div>
+
+    <script>
+        let testLog = [];
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${type.toUpperCase()}: ${message}`;
+            testLog.push(logEntry);
+
+            const output = document.getElementById('test-output');
+            output.textContent = testLog.slice(-10).join('\n'); // Show last 10 entries
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function testExtensionContext() {
+            log('Testing extension context...', 'info');
+
+            try {
+                if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id) {
+                    log(`✅ Extension context valid: ${chrome.runtime.id}`, 'success');
+                } else {
+                    log('❌ Extension context invalid or unavailable', 'error');
+                }
+            } catch (error) {
+                log(`❌ Error checking context: ${error.message}`, 'error');
+            }
+        }
+
+        function simulateIconClick() {
+            log('Simulating icon click...', 'info');
+
+            // Try to find and click the JIRA icon
+            const icon = document.querySelector('.jcai-hover-icon');
+            if (icon) {
+                try {
+                    icon.click();
+                    log('✅ Icon clicked successfully', 'success');
+                } catch (error) {
+                    log(`❌ Error clicking icon: ${error.message}`, 'error');
+                }
+            } else {
+                log('⚠️ JIRA icon not found (hover near right edge to show)', 'warning');
+            }
+        }
+
+        function checkConsoleErrors() {
+            log('Checking for console errors...', 'info');
+
+            // Note: We can't actually access console errors from script
+            // This is just a reminder to check the browser console
+            log('ℹ️ Please check browser DevTools console manually', 'info');
+            log('ℹ️ Look for "Extension context invalidated" errors', 'info');
+        }
+
+        function clearTestOutput() {
+            testLog = [];
+            document.getElementById('test-output').textContent = 'Output cleared...';
+        }
+
+        function calculateTestScore() {
+            const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+            const total = checkboxes.length;
+            const passed = Array.from(checkboxes).filter(cb => cb.checked).length;
+            const percentage = Math.round((passed / total) * 100);
+
+            const scoreElement = document.getElementById('test-score');
+            let color = '#dc3545'; // Red
+            let status = 'FAILED';
+
+            if (percentage >= 90) {
+                color = '#28a745'; // Green
+                status = 'EXCELLENT';
+            } else if (percentage >= 70) {
+                color = '#ffc107'; // Yellow
+                status = 'GOOD';
+            } else if (percentage >= 50) {
+                color = '#fd7e14'; // Orange
+                status = 'NEEDS WORK';
+            }
+
+            scoreElement.innerHTML = `
+                Test Score: <span style="color: ${color};">${passed}/${total} (${percentage}%) - ${status}</span>
+            `;
+
+            log(`Test score calculated: ${passed}/${total} (${percentage}%)`, 'info');
+        }
+
+        // Auto-run initial tests
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                testExtensionContext();
+                log('=== Test page loaded and ready ===', 'info');
+            }, 1000);
+        });
+
+        // Show mouse position for icon testing
+        document.addEventListener('mousemove', (e) => {
+            const windowWidth = window.innerWidth;
+            const mouseX = e.clientX;
+
+            if (windowWidth - mouseX < 100) {
+                // Mouse near right edge - icon should show
+                if (!document.querySelector('.jcai-hover-icon')) {
+                    // Icon not shown yet, give hint
+                    console.log('Mouse near right edge - JIRA icon should appear');
+                }
+            }
+        });
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JIRA Assistant - Final Fixes Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .test-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #007acc;
+        }
+
+        .step {
+            margin: 10px 0;
+            padding: 15px;
+            background: white;
+            border-radius: 6px;
+            border-left: 4px solid #28a745;
+        }
+
+        .step.critical {
+            border-left-color: #dc3545;
+            background: #fff5f5;
+        }
+
+        .success {
+            color: #28a745;
+            font-weight: bold;
+        }
+
+        .error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+
+        .warning {
+            color: #ffc107;
+            font-weight: bold;
+        }
+
+        .code {
+            background: #f4f4f4;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            margin: 10px 0;
+        }
+
+        button {
+            background: #007acc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+
+        button:hover {
+            background: #005a9a;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🔧 JIRA Assistant - Final Fixes Verification</h1>
+
+    <div class="test-section">
+        <h2>📋 Test Overview</h2>
+        <p>This page tests both critical fixes we implemented:</p>
+        <ul>
+            <li><strong>Fix #1:</strong> Tab responsiveness after extension reload</li>
+            <li><strong>Fix #2:</strong> Extension context invalidation error handling</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>🔄 Test #1: Tab Responsiveness After Reload</h2>
+        <div class="step">
+            <h3>Step 1: Open Extension Sidebar</h3>
+            <p>1. Click the JIRA Assistant extension icon in your browser toolbar</p>
+            <p>2. Verify the sidebar opens with Tasks and Settings tabs visible</p>
+        </div>
+
+        <div class="step">
+            <h3>Step 2: Test Initial Tab Functionality</h3>
+            <p>1. Click the "Tasks" tab - should respond immediately</p>
+            <p>2. Click the "Settings" tab - should respond immediately</p>
+            <p>3. Verify tab switching works smoothly</p>
+        </div>
+
+        <div class="step critical">
+            <h3>Step 3: Reload Extension and Test (CRITICAL)</h3>
+            <p>1. Go to <code>edge://extensions/</code></p>
+            <p>2. Find "JIRA Chatbot Assistant" extension</p>
+            <p>3. Click the <strong>reload/refresh button</strong> for the extension</p>
+            <p>4. Return to this page and open the extension sidebar again</p>
+            <p>5. <strong>TEST:</strong> Click both "Tasks" and "Settings" tabs</p>
+            <p class="success">✅ EXPECTED: Tabs should respond immediately (this was broken before our fix)</p>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>⚠️ Test #2: Extension Context Invalidation Handling</h2>
+        <div class="step">
+            <h3>Step 1: Open Browser Console</h3>
+            <p>1. Press <code>F12</code> to open Developer Tools</p>
+            <p>2. Go to the "Console" tab</p>
+            <p>3. Clear the console (Ctrl+L or click clear button)</p>
+        </div>
+
+        <div class="step">
+            <h3>Step 2: Load Page with Extension</h3>
+            <p>1. Refresh this page to ensure content script loads</p>
+            <p>2. Wait for the hover icon to appear on the right side</p>
+            <p>3. Check console - should see: <code>"JIRA Chatbot Assistant content script loaded"</code></p>
+        </div>
+        <div class="step critical">
+            <h3>Step 3: Reload Extension While Content Script Active (CRITICAL)</h3>
+            <p>1. Keep this page open and console visible</p>
+            <p>2. Go to <code>edge://extensions/</code> in a new tab</p>
+            <p>3. Reload the JIRA Assistant extension</p>
+            <p>4. Return to this page</p>
+            <p>5. <strong>Check console for errors</strong></p>
+            <p class="success">✅ EXPECTED: You may see cleanup messages like "Extension context invalidated, cleaning up
+                icon" - this is NORMAL</p>
+            <p class="success">✅ EXPECTED: No crashes or unhandled errors</p>
+            <p class="success">✅ EXPECTED: Content script handles the context loss gracefully</p>
+            <p class="warning">⚠️ NOTE: Cleanup messages are normal behavior, not errors!</p>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🔍 Expected Results</h2>
+        <div class="step">
+            <h3>✅ Success Criteria</h3>
+            <ul>
+                <li>Tab clicks work immediately after extension reload (Fix #1)</li>
+                <li>No unhandled extension context errors in console (Fix #2)</li>
+                <li>Extension functions normally after reload</li>
+                <li>Content script handles invalidation gracefully with cleanup messages</li>
+                <li>Cleanup messages like "cleaning up icon" are normal and expected</li>
+            </ul>
+        </div>
+        <div class="step critical">
+            <h3>🚨 Failure Indicators</h3>
+            <ul>
+                <li>Tabs don't respond to clicks after extension reload</li>
+                <li>Console shows unhandled JavaScript errors or crashes</li>
+                <li>Content script crashes or stops working completely</li>
+                <li>Extension requires page refresh to work again</li>
+                <li>Red error messages that aren't cleanup-related</li>
+            </ul>
+            <p class="warning"><strong>Note:</strong> Cleanup messages like "Extension context invalidated, cleaning up"
+                are NORMAL and indicate the fix is working correctly!</p>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🛠️ Debug Information</h2>
+        <button onclick="showDebugInfo()">Show Debug Info</button>
+        <div id="debugInfo" style="display: none;" class="code">
+            <p><strong>Extension Detection:</strong></p>
+            <div id="extensionStatus">Checking...</div>
+            <p><strong>Content Script Status:</strong></p>
+            <div id="contentScriptStatus">Checking...</div>
+            <p><strong>Console Messages:</strong></p>
+            <div id="consoleMessages">Check browser console manually</div>
+        </div>
+    </div>
+
+    <script>
+        function showDebugInfo() {
+            const debugDiv = document.getElementById('debugInfo');
+            debugDiv.style.display = debugDiv.style.display === 'none' ? 'block' : 'none';
+
+            // Check extension status
+            const extensionStatus = document.getElementById('extensionStatus');
+            if (typeof chrome !== 'undefined' && chrome.runtime) {
+                try {
+                    const extensionId = chrome.runtime.id;
+                    extensionStatus.innerHTML = `<span class="success">✅ Extension context available (ID: ${extensionId})</span>`;
+                } catch (e) {
+                    extensionStatus.innerHTML = `<span class="error">❌ Extension context error: ${e.message}</span>`;
+                }
+            } else {
+                extensionStatus.innerHTML = `<span class="warning">⚠️ Extension context not available</span>`;
+            }
+
+            // Check content script
+            const contentScriptStatus = document.getElementById('contentScriptStatus');
+            const hoverIcon = document.querySelector('.jcai-hover-container');
+            if (hoverIcon) {
+                contentScriptStatus.innerHTML = `<span class="success">✅ Content script loaded (hover icon present)</span>`;
+            } else {
+                contentScriptStatus.innerHTML = `<span class="warning">⚠️ Content script not detected (no hover icon)</span>`;
+            }
+        }
+
+        // Auto-check debug info on page load
+        setTimeout(showDebugInfo, 1000);
+
+        // Test content script injection
+        console.log('Test page loaded - waiting for content script...');
+
+        // Listen for content script messages
+        window.addEventListener('message', function (event) {
+            if (event.data && event.data.type === 'jcai-test') {
+                console.log('✅ Content script communication test successful');
+            }
+        });
+    </script>
+</body>
+
+</html>
