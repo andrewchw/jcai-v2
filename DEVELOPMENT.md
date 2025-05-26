@@ -6,10 +6,23 @@ This guide provides detailed instructions for developers working on the Microsof
 
 We're building a Microsoft Edge extension with a chatbot interface for managing Jira action items using natural language. The system consists of:
 
-1. **Edge Extension**: The frontend UI that users interact with
-2. **Python FastAPI Server**: The backend that processes user requests and communicates with both the LLM and Jira
-3. **Atlassian Python API**: Library that interfaces with Jira Cloud APIs
-4. **SQLite Database**: Local storage for caching data
+1. **Edge Extension**: The frontend UI that users interact with (✅ Complete)
+2. **Python FastAPI Server**: The backend that processes user requests and communicates with both the LLM and Jira (✅ Complete)
+3. **Atlassian Python API**: Library that interfaces with Jira Cloud APIs (✅ Complete)
+4. **SQLite Database**: Local storage for caching data and multi-user support (✅ Complete)
+5. **OpenRouter LLM Integration**: Natural language processing (🎯 Next Priority)
+
+## Current Status (May 26, 2025)
+
+### ✅ Completed Components
+- **OAuth 2.0 Multi-User Authentication**: Full implementation with encrypted token storage
+- **Edge Extension UI**: Sidebar interface with chat functionality and bug fixes
+- **Python Server**: FastAPI with comprehensive API endpoints and database integration
+- **Jira Integration**: Complete Atlassian Python API integration with testing
+- **Testing Infrastructure**: Comprehensive debugging and monitoring tools
+
+### 🎯 Next Development Priority
+**LLM Integration with OpenRouter** - This is the critical missing piece to enable natural language chatbot functionality.
 
 ## Development Environment Setup
 
@@ -75,7 +88,7 @@ We're building a Microsoft Edge extension with a chatbot interface for managing 
    .\venv\Scripts\Activate.ps1
    python run.py
    ```
-   
+
    The server includes comprehensive logging for OAuth token events in `oauth_token_service.log`.
    The API will be available at:
    - API Documentation: `http://localhost:8000/docs`
@@ -89,13 +102,13 @@ We're building a Microsoft Edge extension with a chatbot interface for managing 
    ```powershell
    cd python-server
    .\venv\Scripts\Activate.ps1
-   
+
    # Basic connectivity test
    python test_jira_connection.py
-   
+
    # OAuth background refresh test
    python test_background_refresh.py
-   
+
    # Comprehensive Jira API test
    python test_jira_api.py
    ```
@@ -177,28 +190,58 @@ We're building a Microsoft Edge extension with a chatbot interface for managing 
 
 ## Testing
 
-1. **Component Testing**  - Atlassian Python API integration: Use the provided test scripts
-     ```powershell
-     # Test basic connectivity
-     python python-server/test_jira_connection.py
-     
-     # Test OAuth configuration
-     python python-server/check_oauth_token.py
-     
-     # Test background refresh
-     python python-server/test_background_refresh.py
-     
-     # Test token refresh
-     python python-server/refresh_and_check_token.py
-     ```
-   - Python server: Run unit tests
-     ```powershell
-     cd python-server
-     python -m pytest tests/
-     ```
-   - Edge extension: Use the browser's developer tools (F12) to debug
+### 1. Multi-User System Testing
+   **OAuth Multi-User Flow Testing**:
+   ```powershell
+   cd python-server
+   .\venv\Scripts\Activate.ps1
 
-2. **Manual Testing**
+   # Test multi-user OAuth endpoints
+   python test_multi_user_oauth.py
+
+   # Test user management
+   python test_user_management.py
+   ```
+
+### 2. Component Testing
+   **Atlassian Python API integration**: Use the provided test scripts
+   ```powershell
+   # Test basic connectivity
+   python python-server/test_jira_connection.py
+
+   # Test OAuth configuration
+   python python-server/check_oauth_token.py
+
+   # Test background refresh
+   python python-server/test_background_refresh.py
+
+   # Test token refresh
+   python python-server/refresh_and_check_token.py
+   ```
+
+   **Python server**: Run unit tests
+   ```powershell
+   cd python-server
+   python -m pytest tests/
+   ```
+
+   **Edge extension**: Use the browser's developer tools (F12) to debug
+   - Test tab responsiveness with `edge-extension/test-final-fixes.html`
+   - Verify context handling with automated test scripts
+
+### 3. Extension Bug Fix Verification
+   **Tab Responsiveness Testing**:
+   ```powershell
+   cd edge-extension
+   .\test_fixes.ps1
+   ```
+
+   **Context Invalidation Testing**:
+   - Open `edge-extension/test-final-fixes.html` in Edge
+   - Test extension reload scenarios
+   - Verify error handling in content scripts
+
+### 4. Manual Testing
    - Test all features on Microsoft Edge latest version
    - Verify both online and offline behavior
    - Check responsive design for various sidebar widths
@@ -206,7 +249,7 @@ We're building a Microsoft Edge extension with a chatbot interface for managing 
 
 3. **Integration Testing**
    - Verify end-to-end flow from UI to LLM to Jira and back
-   - Test error handling when services are unavailable 
+   - Test error handling when services are unavailable
    - Check authentication token refresh mechanisms
    - Use the Token Dashboard to monitor OAuth status in real-time
 
@@ -380,3 +423,83 @@ For detailed documentation, see:
 - `python-server/docs/TOKEN_DASHBOARD.md`
 - `python-server/docs/OAUTH2.md`
 - `python-server/docs/REFRESH_TOKENS.md`
+
+## Multi-User Implementation
+
+### Overview
+The system now supports multiple users with individual OAuth tokens and secure data isolation. Each user has their own encrypted token storage and independent Jira access.
+
+### Key Features
+- **Encrypted Token Storage**: Uses Fernet encryption for sensitive OAuth data
+- **User Management**: SQLAlchemy models for User and OAuthToken entities
+- **API Versioning**: Multi-user endpoints at `/api/auth/oauth/v2/*` and `/api/jira/v2/*`
+- **Data Isolation**: Each user's data is completely separated
+- **Background Token Refresh**: Automatic token renewal for all users
+
+### Database Schema
+```sql
+Users Table:
+- id (Primary Key)
+- username (Unique)
+- email
+- created_at
+- updated_at
+
+OAuthTokens Table:
+- id (Primary Key)
+- user_id (Foreign Key)
+- encrypted_access_token
+- encrypted_refresh_token
+- cloud_id
+- expires_at
+- created_at
+- updated_at
+```
+
+### Multi-User API Endpoints
+- `POST /api/auth/oauth/v2/login/{user_id}` - Initiate OAuth for specific user
+- `GET /api/auth/oauth/v2/callback` - Handle OAuth callback
+- `GET /api/auth/oauth/v2/status/{user_id}` - Check auth status for user
+- `GET /api/jira/v2/projects/{user_id}` - Get projects for specific user
+- `GET /api/jira/v2/issues/{user_id}` - Get issues for specific user
+
+For detailed implementation details, see: `python-server/MULTI_USER_IMPLEMENTATION.md`
+
+## Next Development Phase: LLM Integration
+
+### Priority Tasks for OpenRouter Integration
+
+#### 1. Set Up OpenRouter API Connection
+```powershell
+# Add to .env file
+OPENROUTER_API_KEY=your_api_key_here
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+```
+
+#### 2. Create LLM Service Module
+- Create `python-server/app/services/llm_service.py`
+- Implement prompt templates for Jira operations
+- Add streaming response handling
+- Implement rate limiting and error handling
+
+#### 3. Natural Language Processing Pipeline
+- Create prompt templates for:
+  - Task creation: "Create a task for fixing the login bug"
+  - Task queries: "Show me all tasks assigned to John"
+  - Task updates: "Mark task PROJ-123 as completed"
+  - Due date reminders: "What tasks are due this week?"
+
+#### 4. Integration with Extension
+- Update `edge-extension/src/js/sidebar.js` to handle LLM responses
+- Implement streaming chat interface
+- Add loading states and error handling
+
+#### 5. End-to-End Testing
+- Test complete flow: Extension → Server → LLM → Jira → Response
+- Verify natural language understanding accuracy
+- Performance testing with concurrent users
+
+### Expected Timeline
+- **Days 13-15 (May 26-28)**: LLM service implementation and basic integration
+- **Days 16-18 (May 29-31)**: Natural language processing pipeline
+- **Days 19-21 (June 1-3)**: End-to-end testing and optimization
