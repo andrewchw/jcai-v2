@@ -1,0 +1,296 @@
+"""
+Chat endpoint for Dialogflow-inspired conversational Jira interface.
+"""
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from app.core.database import get_db
+from app.services.dialogflow_llm_service import DialogflowInspiredLLMService, JiraIntent
+from app.services.multi_user_jira_service import MultiUserJiraService
+from app.schemas.api_schemas import ChatMessage, ChatResponse
+from app.core.config import settings
+from typing import Dict, Any
+import logging
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/chat", tags=["chat"])
+
+# Initialize LLM service
+llm_service = DialogflowInspiredLLMService(
+    openrouter_api_key=settings.OPENROUTER_API_KEY,
+    model=settings.DEFAULT_LLM_MODEL
+)
+
+@router.post("/message/{user_id}", response_model=ChatResponse)
+async def process_chat_message(
+    user_id: str,
+    message: ChatMessage,
+    db: Session = Depends(get_db)
+):
+    """
+    Process a chat message using Dialogflow-inspired intent classification.
+
+    Flow:    1. Classify intent (create, assign, query, etc.)
+    2. Extract entities (issue keys, usernames, dates, etc.)
+    3. Check if all required entities are present
+    4. If missing entities: Ask clarification question
+    5. If complete: Execute Jira action and respond
+    """
+      try:
+        # Step 1: Process message through Dialogflow-inspired pipeline first
+        llm_response = await llm_service.process_message(user_id, message.text)
+
+        logger.info(f"Processed message for user {user_id}: intent={llm_response['intent']}")
+
+        # Step 2: Check authentication only for Jira-related intents
+        jira_intents = ['create_issue', 'query_issues', 'update_issue', 'assign_issue', 'transition_issue', 'add_comment', 'upload_attachment']
+        requires_jira_auth = llm_response['intent'] in jira_intents
+
+        multi_service = MultiUserJiraService(db)
+        jira_service = multi_service.get_jira_service(user_id)
+
+        # If user is not authenticated and this requires Jira, provide login message
+        if requires_jira_auth and not jira_service:
+            return ChatResponse(
+                text="Please log in to JIRA first to use the chatbot features.",
+                intent="authentication_required",
+                entities={},
+                confidence=1.0,
+                requires_clarification=False,
+                jira_action_result=None,
+                context={}
+            )
+          # Step 3: If this is a fulfillment response, execute Jira action
+        jira_result = None
+        if llm_response["response_type"] == "fulfillment" and "action" in llm_response["response"]:
+            # Check authentication before executing any Jira action
+            if not jira_service:
+                jira_result = {
+                    "success": False,
+                    "message": "Please log in to JIRA first to use the chatbot features."
+                }
+            else:
+                jira_result = await execute_jira_action(
+                    user_id,
+                    llm_response["response"]["action"],
+                    db
+                )
+
+            # Update response with Jira result
+            if jira_result:
+                llm_response["response"]["text"] += f"\n\n✅ {jira_result['message']}"
+                if "issue_key" in jira_result:
+                    llm_response["response"]["text"] += f" ({jira_result['issue_key']})"
+
+        return ChatResponse(
+            text=llm_response["response"]["text"],
+            intent=llm_response["intent"],
+            entities=llm_response["entities"],
+            confidence=llm_response["confidence"],
+            requires_clarification=llm_response["response_type"] == "clarification",
+            jira_action_result=jira_result,
+            context=llm_response["context"]
+        )
+
+    except Exception as e:
+        logger.error(f"Error processing chat message for user {user_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to process message: {str(e)}")
+
+async def execute_jira_action(user_id: str, action: Dict[str, Any], db: Session) -> Dict[str, Any]:
+    """Execute the Jira action based on intent and entities"""
+
+    try:
+        jira_service = MultiUserJiraService(db)
+        action_type = action.get("type")
+        params = action.get("parameters", {})
+
+        if action_type == "create_issue":
+            return await create_issue_action(user_id, params, jira_service)
+        elif action_type == "assign_issue":
+            return await assign_issue_action(user_id, params, jira_service)
+        elif action_type == "transition_issue":
+            return await transition_issue_action(user_id, params, jira_service)
+        elif action_type == "search_issues":
+            return await search_issues_action(user_id, params, jira_service)
+        elif action_type == "add_comment":
+            return await add_comment_action(user_id, params, jira_service)
+        else:
+            return {"success": False, "message": f"Unknown action type: {action_type}"}
+
+    except Exception as e:
+        logger.error(f"Error executing Jira action {action_type} for user {user_id}: {str(e)}")
+        return {"success": False, "message": f"Failed to execute action: {str(e)}"}
+
+async def create_issue_action(user_id: str, params: Dict[str, Any], jira_service: MultiUserJiraService) -> Dict[str, Any]:
+    """Create a new Jira issue"""
+
+    try:
+        # Get user's default project if not specified
+        project_key = params.get("project_key", settings.DEFAULT_JIRA_PROJECT_KEY)
+
+        issue_data = {
+            "project": {"key": project_key},
+            "summary": params.get("summary", "New task from chatbot"),
+            "description": params.get("description", "Created via Jira Chatbot Extension"),
+            "issuetype": {"name": "Task"}
+        }
+
+        # Add optional fields
+        if "assignee" in params:
+            # Remove @ symbol if present
+            assignee = params["assignee"].lstrip("@")
+            issue_data["assignee"] = {"name": assignee}
+
+        if "priority" in params:
+            priority_map = {
+                "low": "Low",
+                "medium": "Medium",
+                "high": "High",
+                "critical": "Critical",
+                "urgent": "Highest"
+            }
+            priority = priority_map.get(params["priority"].lower(), "Medium")
+            issue_data["priority"] = {"name": priority}
+
+        # Create the issue
+        result = await jira_service.create_issue(user_id, issue_data)
+
+        if result["success"]:
+            return {
+                "success": True,
+                "message": "Issue created successfully",
+                "issue_key": result["issue"]["key"],
+                "issue_url": f"{settings.JIRA_URL}/browse/{result['issue']['key']}"
+            }
+        else:
+            return {"success": False, "message": result["error"]}
+
+    except Exception as e:
+        logger.error(f"Error creating issue: {str(e)}")
+        return {"success": False, "message": f"Failed to create issue: {str(e)}"}
+
+async def assign_issue_action(user_id: str, params: Dict[str, Any], jira_service: MultiUserJiraService) -> Dict[str, Any]:
+    """Assign an issue to a user"""
+
+    try:
+        issue_key = params.get("issue_key")
+        assignee = params.get("assignee", "").lstrip("@")
+
+        if not issue_key or not assignee:
+            return {"success": False, "message": "Missing issue key or assignee"}
+
+        result = await jira_service.assign_issue(user_id, issue_key, assignee)
+
+        if result["success"]:
+            return {
+                "success": True,
+                "message": f"Assigned {issue_key} to {assignee}",
+                "issue_key": issue_key
+            }
+        else:
+            return {"success": False, "message": result["error"]}
+
+    except Exception as e:
+        return {"success": False, "message": f"Failed to assign issue: {str(e)}"}
+
+async def transition_issue_action(user_id: str, params: Dict[str, Any], jira_service: MultiUserJiraService) -> Dict[str, Any]:
+    """Transition an issue to a new status"""
+
+    try:
+        issue_key = params.get("issue_key")
+        status = params.get("status")
+
+        if not issue_key or not status:
+            return {"success": False, "message": "Missing issue key or status"}
+
+        # Map common status names
+        status_map = {
+            "todo": "To Do",
+            "to do": "To Do",
+            "in progress": "In Progress",
+            "done": "Done",
+            "completed": "Done",
+            "closed": "Done"
+        }
+
+        mapped_status = status_map.get(status.lower(), status)
+
+        result = await jira_service.transition_issue(user_id, issue_key, mapped_status)
+
+        if result["success"]:
+            return {
+                "success": True,
+                "message": f"Moved {issue_key} to {mapped_status}",
+                "issue_key": issue_key
+            }
+        else:
+            return {"success": False, "message": result["error"]}
+
+    except Exception as e:
+        return {"success": False, "message": f"Failed to transition issue: {str(e)}"}
+
+async def search_issues_action(user_id: str, params: Dict[str, Any], jira_service: MultiUserJiraService) -> Dict[str, Any]:
+    """Search for issues based on criteria"""
+
+    try:
+        # Build JQL query from parameters
+        jql_parts = []
+
+        if "assignee" in params:
+            assignee = params["assignee"].lstrip("@")
+            jql_parts.append(f"assignee = '{assignee}'")
+
+        if "project_key" in params:
+            jql_parts.append(f"project = '{params['project_key']}'")
+
+        if "status" in params:
+            jql_parts.append(f"status = '{params['status']}'")
+
+        jql = " AND ".join(jql_parts) if jql_parts else "assignee = currentUser()"
+
+        result = await jira_service.search_issues(user_id, jql, max_results=10)
+
+        if result["success"]:
+            issues = result["issues"]
+            if not issues:
+                return {"success": True, "message": "No issues found matching your criteria"}
+
+            issue_list = []
+            for issue in issues[:5]:  # Limit to 5 for chat display
+                issue_list.append(f"• {issue['key']}: {issue['fields']['summary']}")
+
+            message = f"Found {len(issues)} issue(s):\n" + "\n".join(issue_list)
+            if len(issues) > 5:
+                message += f"\n... and {len(issues) - 5} more"
+
+            return {"success": True, "message": message}
+        else:
+            return {"success": False, "message": result["error"]}
+
+    except Exception as e:
+        return {"success": False, "message": f"Failed to search issues: {str(e)}"}
+
+async def add_comment_action(user_id: str, params: Dict[str, Any], jira_service: MultiUserJiraService) -> Dict[str, Any]:
+    """Add a comment to an issue"""
+
+    try:
+        issue_key = params.get("issue_key")
+        comment = params.get("comment") or params.get("summary", "")
+
+        if not issue_key or not comment:
+            return {"success": False, "message": "Missing issue key or comment"}
+
+        result = await jira_service.add_comment(user_id, issue_key, comment)
+
+        if result["success"]:
+            return {
+                "success": True,
+                "message": f"Added comment to {issue_key}",
+                "issue_key": issue_key
+            }
+        else:
+            return {"success": False, "message": result["error"]}
+
+    except Exception as e:
+        return {"success": False, "message": f"Failed to add comment: {str(e)}"}

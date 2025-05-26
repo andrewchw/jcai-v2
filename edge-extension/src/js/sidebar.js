@@ -261,17 +261,17 @@ function setupEventListeners() {
     // Tab switching
     elements.tabButtons.forEach(button => {
         button.addEventListener('click', () => switchTab(button.id.replace('tab-', '')));
-    });
-
-    // Chat input
-    elements.userInput.addEventListener('keydown', (e) => {
+    });    // Chat input
+    elements.userInput.addEventListener('keydown', async (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            sendMessage();
+            await sendMessage();
         }
     });
 
-    elements.sendButton.addEventListener('click', sendMessage);
+    elements.sendButton.addEventListener('click', async () => {
+        await sendMessage();
+    });
     elements.clearButton.addEventListener('click', clearChat);    // Filter changes
     elements.projectFilter.addEventListener('change', loadTasks);
     elements.statusFilter.addEventListener('change', loadTasks);
@@ -1037,7 +1037,7 @@ function switchTab(tabName) {
 /**
  * Send a chat message
  */
-function sendMessage() {
+async function sendMessage() {
     const message = elements.userInput.value.trim();
     if (!message) return;
 
@@ -1048,7 +1048,7 @@ function sendMessage() {
     elements.userInput.value = '';
 
     // Check if authenticated first
-    if (!state.isAuthenticated) {
+    if (!state.isAuthenticated || !state.userId) {
         addMessage('Please log in to JIRA first to use the chatbot features.', 'system');
         return;
     }
@@ -1056,17 +1056,67 @@ function sendMessage() {
     // Add typing indicator
     const typingIndicator = addMessage('Thinking...', 'system');
 
-    // TODO: Send message to backend for processing
-    // This will be implemented when LLM integration is added
+    try {
+        // Send message to the new chat API
+        const response = await fetch(`${state.serverUrl}/api/chat/message/${encodeURIComponent(state.userId)}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                text: message
+            })
+        });
 
-    // For now, add a mock response after a delay
-    setTimeout(() => {
         // Remove typing indicator
         elements.messagesContainer.removeChild(typingIndicator);
 
-        // Add mock response
-        addMessage('This is a placeholder response. LLM integration will be implemented in the next phase.', 'bot');
-    }, 1500);
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Chat API error: ${response.status} - ${errorText}`);
+        }
+
+        const chatResponse = await response.json();
+
+        // Add the bot's response
+        addMessage(chatResponse.text, 'bot');
+
+        // If there was a Jira action result, show additional feedback
+        if (chatResponse.jira_action_result) {
+            const actionResult = chatResponse.jira_action_result;
+            if (actionResult.success) {
+                addMessage(`✅ Action completed successfully: ${actionResult.message}`, 'system');
+
+                // If an issue was created or modified, refresh tasks
+                if (actionResult.issue_key || chatResponse.intent === 'create_issue') {
+                    // Refresh the tasks list to show new/updated issues
+                    setTimeout(() => {
+                        state.lastTasksCheck = 0; // Force refresh
+                        loadTasks();
+                    }, 1000);
+                }
+            } else {
+                addMessage(`❌ Action failed: ${actionResult.message || 'Unknown error'}`, 'system');
+            }
+        }
+
+        // If the response requires clarification, give user some context
+        if (chatResponse.requires_clarification) {
+            const missingInfo = chatResponse.context?.missing_entities?.join(', ') || 'additional information';
+            addMessage(`💡 Tip: I need ${missingInfo} to complete this action.`, 'system');
+        }
+
+    } catch (error) {
+        console.error('Error sending chat message:', error);
+
+        // Remove typing indicator if still present
+        if (typingIndicator && typingIndicator.parentNode) {
+            elements.messagesContainer.removeChild(typingIndicator);
+        }
+
+        // Show error to user
+        addMessage(`Sorry, I encountered an error: ${error.message}. Please try again.`, 'system');
+    }
 }
 
 /**

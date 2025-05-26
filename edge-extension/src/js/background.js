@@ -117,9 +117,7 @@ function handleSidebarConnection(port) {
                 timestamp: Date.now(), // Include timestamp for debugging
                 source: 'initial-connection'
             }
-        });
-
-        // Also send token data if we have it
+        });        // Also send token data if we have it
         if (tokenState.tokenData) {
             port.postMessage({
                 type: 'token-status',
@@ -127,7 +125,17 @@ function handleSidebarConnection(port) {
             });
         }
 
+        // IMPORTANT: Send the user ID to the sidebar so it can make API requests
+        port.postMessage({
+            type: 'user-id-update',
+            payload: {
+                userId: tokenState.userId,
+                timestamp: Date.now()
+            }
+        });
+
         console.log('Sent initial token state to sidebar:', tokenState.isAuthenticated);
+        console.log('Sent user ID to sidebar:', tokenState.userId);
     } catch (err) {
         console.error('Error sending initial token state to sidebar:', err);
     }    // Listen for messages from sidebar
@@ -607,7 +615,7 @@ async function handleSuccessfulLogin() {
 }
 
 /**
- * Notify all sidebars about authentication status 
+ * Notify all sidebars about authentication status
  * @param {boolean} isAuthenticated - The current authentication status
  * @param {object} userInfo - Optional user information
  */
@@ -1180,8 +1188,8 @@ async function fetchUserInfo(userId) {
             return {
                 displayName: userData.displayName,
                 // Include other fields if your sidebar needs them, e.g., accountId, avatarUrls
-                // accountId: userData.accountId, 
-                // emailAddress: userData.emailAddress 
+                // accountId: userData.accountId,
+                // emailAddress: userData.emailAddress
             };
         } else {
             console.warn('User data from /user/profile does not contain displayName:', userData);
