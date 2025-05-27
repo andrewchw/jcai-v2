@@ -41,10 +41,8 @@ class MultiUserJiraService:
         """
         # If we already have a service for this user, return it
         if user_id in self._jira_services:
-            return self._jira_services[user_id]
-
-        # Get the user's token
-        token = self.token_service.get_token(user_id)
+            return self._jira_services[user_id]  # Get the user's token
+        token = self.token_service.get_token(user_id, "jira")
         if not token:
             logger.warning(f"No token found for user {user_id}")
             return None
@@ -184,15 +182,16 @@ class MultiUserJiraService:
 
             additional_fields = {}
             if "priority" in issue_data:
-                additional_fields["priority"] = issue_data["priority"]
-
-            # Create the issue using JiraService
+                additional_fields["priority"] = issue_data[
+                    "priority"
+                ]  # Create the issue using JiraService
             result = jira_service.create_issue(
                 project_key=project_key,
                 summary=summary,
                 description=description,
                 issue_type=issue_type,
                 assignee=assignee,
+                components=None,  # No components support in current UI
                 additional_fields=additional_fields,
             )
 
