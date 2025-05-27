@@ -1,7 +1,8 @@
-import json
+"""Jira service module for handling Jira API operations."""
+
 import logging
 import os
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 import requests
 from app.core.config import settings
@@ -23,10 +24,13 @@ class JiraService:
         access_token: Optional[str] = None,
         user_id: Optional[str] = None,
         db_session: Optional[Any] = None,
-    ):  # Modified to accept access_token
+    ):
+        """Initialize Jira service."""
         self._client = None
         self._oauth2_token = None  # This will be set if access_token is provided
-        self._token_service = None  # Original token service for non-user-specific calls
+        self._token_service: Optional[
+            OAuthTokenService
+        ] = None  # Original token service for non-user-specific calls
         self._cached_cloud_id = None
         self.user_id = user_id  # Store user_id if provided for multi-user context
         self.db_session = db_session  # Store db_session if provided
