@@ -36,7 +36,7 @@ $inVenv = (Test-Path env:VIRTUAL_ENV)
 if (-not $inVenv) {
     Write-Host "Warning: Not running in a virtual environment" -ForegroundColor Yellow
     Write-Host "Consider activating a virtual environment first" -ForegroundColor Yellow
-    
+
     # Check if venv directory exists
     if (Test-Path (Join-Path $PSScriptRoot "..\env")) {
         Write-Host "Virtual environment found at ..\env" -ForegroundColor Cyan

@@ -46,11 +46,11 @@
    // Clean background
    background: none;
    border: none;
-   
+
    // Full size icon
    width: 48px;
    height: 48px;
-   
+
    // No pulse ring element
    ```
 
@@ -63,7 +63,7 @@
 
 **Your extension now provides:**
 - Monica AI-style hover functionality ✅
-- Clean, professional icon appearance ✅  
+- Clean, professional icon appearance ✅
 - Full-size icon display (no reduction) ✅
 - No background color interference ✅
 - High-quality rendering ✅

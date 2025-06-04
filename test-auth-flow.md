@@ -67,7 +67,7 @@ The following debug tools have been added to help troubleshoot authentication is
 2. **Browser Console**:
    - Enhanced logging in both sidebar.js and background.js
    - Shows authentication events and token status
-   
+
 3. **Health Check Endpoint**:
    - Visit http://localhost:8000/api/health to see current auth status
    - Provides token presence and timestamp information

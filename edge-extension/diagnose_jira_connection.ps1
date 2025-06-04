@@ -12,7 +12,7 @@ function Write-ColoredOutput {
         [string]$Message,
         [string]$Color = "White"
     )
-    
+
     Write-Host $Message -ForegroundColor $Color
 }
 
@@ -23,20 +23,20 @@ function Test-ServerEndpoint {
         [string]$UserId = "test-diagnostic-user",
         [switch]$DetailedOutput = $false
     )
-    
+
     $url = "http://localhost:8000$Endpoint"
     if ($Endpoint -like "*`?*") {
         $url = "${url}&_diagnostic=true"
     } else {
         $url = "${url}?_diagnostic=true"
     }
-    
+
     Write-ColoredOutput "Testing $Description endpoint: $url" "Cyan"
-    
+
     try {
         $response = Invoke-WebRequest -Uri $url -Method Get -UseBasicParsing
         Write-ColoredOutput "  Status: $($response.StatusCode) $($response.StatusDescription)" "Green"
-        
+
         if ($DetailedOutput) {
             try {
                 $content = $response.Content
@@ -49,7 +49,7 @@ function Test-ServerEndpoint {
         } else {
             Write-ColoredOutput "  Response: $($response.Content)" "Gray"
         }
-        
+
         return $true
     } catch {
         $statusCode = $_.Exception.Response.StatusCode.value__
@@ -61,7 +61,7 @@ function Test-ServerEndpoint {
         } catch {
             $errorDetails = "Could not read error details"
         }
-        
+
         Write-ColoredOutput "  Failed with status: $statusCode" "Red"
         Write-ColoredOutput "  Error details: $errorDetails" "Red"
         return $false
@@ -70,7 +70,7 @@ function Test-ServerEndpoint {
 
 # Welcome message
 Write-ColoredOutput "`n=====================================" "Yellow"
-Write-ColoredOutput "JIRA API CONNECTION DIAGNOSTICS" "Yellow" 
+Write-ColoredOutput "JIRA API CONNECTION DIAGNOSTICS" "Yellow"
 Write-ColoredOutput "=====================================`n" "Yellow"
 
 # Check if server is running
@@ -218,7 +218,7 @@ Write-ColoredOutput "`nEND OF DIAGNOSTIC REPORT" "Yellow"
 if (-not $projectsEndpoint -or -not $issuesEndpoint) {
     Write-ColoredOutput "The server is responding to OAuth token requests but failing on Jira API calls." "Yellow"
     Write-ColoredOutput "This indicates a problem with the Jira API connection configuration or permissions." "Yellow"
-    
+
     Write-ColoredOutput "`nRECOMMENDED ACTIONS:" "Green"
     Write-ColoredOutput "1. Check that the Jira API credentials are correctly configured" "White"
     Write-ColoredOutput "2. Verify that the OAuth token has the correct Jira API scopes" "White"

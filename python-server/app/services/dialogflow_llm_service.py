@@ -5,11 +5,10 @@ This module implements intent-based natural language processing
 following Dialogflow architectural patterns but using OpenRouter LLM.
 """
 
-import asyncio
 import json
 import logging
 import re
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -146,9 +145,11 @@ INTENT_REQUIREMENTS = {
 ENTITY_PATTERNS = {
     "issue_key": r"([A-Z]+-\d+)",
     "username": r"@(\w+)",
+    "assignee": r"assignee\s*[:=]\s*[\"\'](.*?)[\"\']\s*|assignee\s*[:=]\s*([^,\n]+?)(?:\s*,|\s*$|\s*for|\s*and)",
+    "summary": r"summary\s*[:=]\s*[\"\'](.*?)[\"\']\s*|summary\s*[:=]\s*([^,\n]+?)(?:\s*,|\s*$|\s*for|\s*and)",
     "project_key": r"\b(project\s+([A-Z]{2,10})|in\s+([A-Z]{2,10})|([A-Z]{2,10})\s+project)\b",
-    "due_date": r"(\d{4}-\d{2}-\d{2}|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|next week|next month)",
-    "priority": r"(low|medium|high|critical|urgent|blocker)",
+    "due_date": r"due\s*date\s*[:=]\s*[\"\'](.*?)[\"\']\s*|due\s*date\s*[:=]\s*([^,\n]+?)(?:\s*,|\s*$|\s*for|\s*and)|(\d{4}-\d{2}-\d{2}|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|next week|next month)",
+    "priority": r"priority\s*[:=]\s*[\"\'](.*?)[\"\']\s*|priority\s*[:=]\s*([^,\n]+?)(?:\s*,|\s*$|\s*for|\s*and)|(low|medium|high|critical|urgent|blocker)",
     "status": r"(todo|to do|in progress|done|completed|closed|open|resolved)",
 }
 
@@ -256,17 +257,15 @@ class DialogflowInspiredLLMService:
     ) -> Dict[str, JiraEntity]:
         """Extract entities using regex patterns + LLM"""
 
-        entities = {}
+        entities: Dict[str, JiraEntity] = {}
 
         # Only extract entities for intents that need them
         if intent in [JiraIntent.SMALL_TALK, JiraIntent.HELP]:
-            return entities
-
-        # Pattern-based extraction
+            return entities  # Pattern-based extraction
         for entity_type, pattern in ENTITY_PATTERNS.items():
             matches = re.findall(pattern, message, re.IGNORECASE)
             if matches:
-                # Handle project_key pattern which has multiple groups
+                # Handle patterns with multiple groups
                 if entity_type == "project_key":
                     # Extract the actual project key from the matched groups
                     for match in (
@@ -275,8 +274,30 @@ class DialogflowInspiredLLMService:
                         if match and re.match(r"^[A-Z]{2,10}$", match):
                             entities[entity_type] = JiraEntity(entity_type, match)
                             break
+                elif entity_type in ["assignee", "summary", "due_date", "priority"]:
+                    # Handle patterns with optional quoted/unquoted formats
+                    if isinstance(matches[0], tuple):
+                        # Find the first non-empty group
+                        value = next(
+                            (group for group in matches[0] if group and group.strip()),
+                            None,
+                        )
+                        if value:
+                            entities[entity_type] = JiraEntity(
+                                entity_type, value.strip()
+                            )
+                    else:
+                        entities[entity_type] = JiraEntity(
+                            entity_type, matches[0].strip()
+                        )
                 else:
-                    entities[entity_type] = JiraEntity(entity_type, matches[0])
+                    # Simple single-group patterns
+                    value = (
+                        matches[0]
+                        if not isinstance(matches[0], tuple)
+                        else matches[0][0]
+                    )
+                    entities[entity_type] = JiraEntity(entity_type, value)
 
         # LLM-based extraction for complex entities
         if intent in [JiraIntent.CREATE_ISSUE, JiraIntent.ADD_COMMENT]:
@@ -324,7 +345,9 @@ class DialogflowInspiredLLMService:
             JiraIntent.HELP: "I can help you create issues, assign tasks, update status, search for issues, and add comments. What would you like to do?",
         }
 
-        template = templates.get(context.current_intent, "I'll help you with that.")
+        template = templates.get(
+            context.current_intent or JiraIntent.HELP, "I'll help you with that."
+        )
 
         # Replace entity placeholders
         for entity_type, entity in context.entities.items():
@@ -362,7 +385,7 @@ class DialogflowInspiredLLMService:
             JiraIntent.ADD_COMMENT: "add_comment",
         }
 
-        action = action_map.get(context.current_intent)
+        action = action_map.get(context.current_intent or JiraIntent.HELP)
         if not action:
             return {}
 
@@ -401,7 +424,9 @@ If unsure, respond with "unknown"."""
                 temperature=0.3,
             )
 
-            predicted_intent = response.choices[0].message.content.strip().lower()
+            predicted_intent = response.choices[0].message.content
+            if predicted_intent:
+                predicted_intent = predicted_intent.strip().lower()
 
             # Validate the prediction
             for intent in JiraIntent:
@@ -441,14 +466,17 @@ Summary:"""
                 max_tokens=100,
                 temperature=0.3,
             )
+            summary = response.choices[0].message.content
+            if summary:
+                summary = summary.strip()
 
-            summary = response.choices[0].message.content.strip()
+                if summary.upper() == "NONE" or len(summary) > 100:
+                    return None
 
-            if summary.upper() == "NONE" or len(summary) > 100:
+                logger.info(f"LLM extracted summary: {summary}")
+                return summary
+            else:
                 return None
-
-            logger.info(f"LLM extracted summary: {summary}")
-            return summary
 
         except Exception as e:
             logger.error(f"LLM summary extraction failed: {e}")
@@ -483,9 +511,11 @@ Enhanced response:"""
                 temperature=0.7,
             )
 
-            enhanced = response.choices[0].message.content.strip()
+            enhanced = response.choices[0].message.content
+            if enhanced:
+                enhanced = enhanced.strip()
             logger.info(f"LLM enhanced response: {enhanced}")
-            return enhanced
+            return enhanced or base_response
 
         except Exception as e:
             logger.error(f"LLM response enhancement failed: {e}")

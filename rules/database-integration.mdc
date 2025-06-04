@@ -1,6 +1,6 @@
 ---
 description: Apply this rule when working with database operations, creating database queries, setting up database connections, or integrating authentication with database operations
-globs: 
+globs:
 ---
  # Database Integration Rules
 

@@ -17,7 +17,7 @@ function Write-StatusMessage {
         [string]$Status = "Info",
         [switch]$NoNewline
     )
-    
+
     $color = switch ($Status) {
         "Success" { "Green" }
         "Warning" { "Yellow" }
@@ -25,7 +25,7 @@ function Write-StatusMessage {
         "Info" { "Cyan" }
         default { "White" }
     }
-    
+
     if ($NoNewline) {
         Write-Host $Message -ForegroundColor $color -NoNewline
     } else {
@@ -37,9 +37,9 @@ function Test-ServerConnection {
     param (
         [string]$Url = "http://localhost:8000"
     )
-    
+
     Write-StatusMessage "Testing connection to $Url..." -Status "Info" -NoNewline
-    
+
     try {
         $response = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 5
         if ($response.StatusCode -eq 200) {
@@ -59,13 +59,13 @@ function Get-OAuthTokenStatus {
     param (
         [string]$Url = "http://localhost:8000/api/auth/oauth/token/status"
     )
-    
+
     Write-StatusMessage "Checking OAuth token status..." -Status "Info" -NoNewline
-    
+
     try {
         $response = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 5
         $tokenData = $response.Content | ConvertFrom-Json
-        
+
         if ($tokenData.status -eq "active") {
             Write-StatusMessage " ✓ Token is active!" -Status "Success"
             return $tokenData
@@ -83,16 +83,16 @@ function Test-TokenFile {
     param (
         [string]$TokenPath = "python-server/oauth_token.json"
     )
-    
+
     Write-StatusMessage "Checking token file..." -Status "Info" -NoNewline
-    
+
     if (Test-Path $TokenPath) {
         try {
             $tokenContent = Get-Content $TokenPath -Raw | ConvertFrom-Json
             $hasAccessToken = [bool]$tokenContent.access_token
             $hasRefreshToken = [bool]$tokenContent.refresh_token
             $hasExpiresAt = [bool]$tokenContent.expires_at
-            
+
             if ($hasAccessToken -and $hasRefreshToken -and $hasExpiresAt) {
                 Write-StatusMessage " ✓ Token file is valid!" -Status "Success"
                 return $tokenContent
@@ -149,7 +149,7 @@ if ($tokenFile) {
     $expiresAt = [DateTimeOffset]::FromUnixTimeSeconds([double]$tokenFile.expires_at).LocalDateTime
     $now = Get-Date
     $timeRemaining = $expiresAt - $now
-    
+
     if ($expiresAt -gt $now) {
         Write-StatusMessage "Token Expiration: Valid for $([int]$timeRemaining.TotalMinutes) minutes" -Status "Success"
     } else {
@@ -164,11 +164,11 @@ if ($tokenFile) {
 if ($tokenStatus) {
     $statusColor = if ($tokenStatus.status -eq "active") { "Success" } else { "Warning" }
     Write-StatusMessage "API Token Status: $($tokenStatus.status)" -Status $statusColor
-    
+
     if ($tokenStatus.status -ne "active") {
         Write-StatusMessage "Solution: Log in again or refresh token with './python-server/refresh_and_check_token.py'" -Status "Info"
     }
-    
+
     # Show additional token details
     Write-StatusMessage "`nTOKEN DETAILS:" -Status "Info"
     Write-StatusMessage "---------------------------------------------------" -Status "Info"
@@ -190,11 +190,11 @@ $apiUrl = (Get-Content -Path "edge-extension/src/js/background.js" -Raw) -match 
 if ($Matches -and $Matches.Count -gt 1) {
     $extApiUrl = $Matches[1]
     Write-StatusMessage "Extension API URL: $extApiUrl" -Status "Info"
-    
+
     # Test connection to extension API URL
     $apiUrlNoPath = $extApiUrl -replace "/api$", ""
     Test-ServerConnection -Url $apiUrlNoPath
-    
+
     # Check if URL matches current server
     if ($extApiUrl -eq "http://localhost:8000/api") {
         Write-StatusMessage "URL Configuration: Correct" -Status "Success"

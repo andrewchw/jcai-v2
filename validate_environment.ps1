@@ -25,12 +25,12 @@ try {
 # Check virtual environment
 if (Test-Path ".\.venv") {
     Write-Host "✅ Python virtual environment exists" -ForegroundColor Green
-    
+
     # Activate the environment to check packages
     try {
         & ".\.venv\Scripts\Activate.ps1"
         Write-Host "✅ Successfully activated virtual environment" -ForegroundColor Green
-        
+
         # Check Python packages
         Write-Host "Checking installed packages..." -ForegroundColor Yellow
         pip list | Select-String -Pattern "fastapi|uvicorn|requests|python-dotenv"
@@ -59,7 +59,7 @@ if (Test-Path ".\python-server\oauth_token.json") {
 try {
     $portInUse = $null
     $portInUse = Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue
-    
+
     if ($portInUse) {
         Write-Host "⚠️ Port 8000 is already in use by another process (PID: $($portInUse.OwningProcess))" -ForegroundColor Yellow
     } else {

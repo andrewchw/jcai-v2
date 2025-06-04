@@ -8,10 +8,10 @@ without requiring full API integration.
 import os
 import sys
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from app.services.dialogflow_llm_service import (DialogflowInspiredLLMService,
                                                  JiraIntent)
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def test_intent_classification():
@@ -85,19 +85,18 @@ def test_conversation_flow():
 
     service = DialogflowInspiredLLMService("test-key")
     user_id = "test_user"
-
     print("\n💬 Testing Conversation Flow")
     print("=" * 50)
 
     # First message - incomplete
     response1 = service.process_message(user_id, "Create a task")
-    print(f"User: Create a task")
+    print("User: Create a task")
     print(f"Bot: {response1['response']['text']}")
     print(f"Type: {response1['response_type']}")
 
     # Second message - provide missing info
     response2 = service.process_message(user_id, "Fix the login bug")
-    print(f"\nUser: Fix the login bug")
+    print("\nUser: Fix the login bug")
     print(f"Bot: {response2['response']['text']}")
     print(f"Type: {response2['response_type']}")
 

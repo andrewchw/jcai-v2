@@ -5,11 +5,11 @@ import os
 import sys
 import traceback
 
-# Add the parent directory to the path so we can import from app
-sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
-
 from app.core.database import get_db
 from app.services.multi_user_jira_service import MultiUserJiraService
+
+# Add the parent directory to the path so we can import from app
+sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
 
 async def test_create_issue():
@@ -54,9 +54,9 @@ async def test_create_issue():
         try:
             jira_service = multi_user_service.get_jira_service(user_id)
             if jira_service:
-                print(f"✅ JiraService created successfully")
+                print("✅ JiraService created successfully")
             else:
-                print(f"❌ Failed to create JiraService")
+                print("❌ Failed to create JiraService")
                 return
         except Exception as e:
             print(f"❌ Error creating JiraService: {e}")
@@ -71,7 +71,7 @@ async def test_create_issue():
             if jcai_project:
                 print(f"✅ JCAI project found: {jcai_project.get('name', 'Unknown')}")
             else:
-                print(f"❌ JCAI project not found in available projects")
+                print("❌ JCAI project not found in available projects")
                 print(f"Available projects: {[p.get('key') for p in projects[:5]]}")
         except Exception as e:
             print(f"❌ Error getting projects: {e}")

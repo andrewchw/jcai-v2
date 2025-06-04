@@ -20,7 +20,7 @@ function Write-ColoredOutput {
         [string]$Message,
         [string]$Color = "White"
     )
-    
+
     Write-Host $Message -ForegroundColor $Color
 }
 
@@ -62,9 +62,9 @@ $newContent = $originalContent
 # Replace initiateLogin function
 if ($newContent -match '(?s)function\s+initiateLogin\s*\(\s*\)\s*{[^{}]*(?:{[^{}]*}[^{}]*)*}') {
     $oldInitiateLogin = $Matches[0]
-    $newContent = $newContent.Replace($oldInitiateLogin, 
-        "function initiateLogin() {`n" + 
-        ($patchContent -split 'function initiateLogin\(\) {')[1].Split('function handleSuccessfulLogin')[0].Trim() + 
+    $newContent = $newContent.Replace($oldInitiateLogin,
+        "function initiateLogin() {`n" +
+        ($patchContent -split 'function initiateLogin\(\) {')[1].Split('function handleSuccessfulLogin')[0].Trim() +
         "`n}")
     Write-ColoredOutput "Replaced initiateLogin function" "Green"
 } else {
@@ -74,9 +74,9 @@ if ($newContent -match '(?s)function\s+initiateLogin\s*\(\s*\)\s*{[^{}]*(?:{[^{}
 # Replace handleSuccessfulLogin function
 if ($newContent -match '(?s)async\s+function\s+handleSuccessfulLogin\s*\(\s*\)\s*{[^{}]*(?:{[^{}]*}[^{}]*)*}') {
     $oldHandleSuccessfulLogin = $Matches[0]
-    $newContent = $newContent.Replace($oldHandleSuccessfulLogin, 
-        "async function handleSuccessfulLogin() {`n" + 
-        ($patchContent -split 'async function handleSuccessfulLogin\(\) {')[1].Split('async function notifySidebarsAboutAuth')[0].Trim() + 
+    $newContent = $newContent.Replace($oldHandleSuccessfulLogin,
+        "async function handleSuccessfulLogin() {`n" +
+        ($patchContent -split 'async function handleSuccessfulLogin\(\) {')[1].Split('async function notifySidebarsAboutAuth')[0].Trim() +
         "`n}")
     Write-ColoredOutput "Replaced handleSuccessfulLogin function" "Green"
 } else {
@@ -85,9 +85,9 @@ if ($newContent -match '(?s)async\s+function\s+handleSuccessfulLogin\s*\(\s*\)\s
 
 # Add notifySidebarsAboutAuth function (before checkOAuthToken)
 if ($newContent -match '(?s)async\s+function\s+checkOAuthToken\s*\(\s*\)\s*{') {
-    $newContent = $newContent.Replace($Matches[0], 
-        "async function notifySidebarsAboutAuth(isAuthenticated) {`n" + 
-        ($patchContent -split 'async function notifySidebarsAboutAuth\(isAuthenticated\) {')[1].Split('async function checkOAuthToken')[0].Trim() + 
+    $newContent = $newContent.Replace($Matches[0],
+        "async function notifySidebarsAboutAuth(isAuthenticated) {`n" +
+        ($patchContent -split 'async function notifySidebarsAboutAuth\(isAuthenticated\) {')[1].Split('async function checkOAuthToken')[0].Trim() +
         "`n}`n`n" + $Matches[0])
     Write-ColoredOutput "Added notifySidebarsAboutAuth function" "Green"
 } else {
@@ -97,9 +97,9 @@ if ($newContent -match '(?s)async\s+function\s+checkOAuthToken\s*\(\s*\)\s*{') {
 # Replace checkOAuthToken function
 if ($newContent -match '(?s)async\s+function\s+checkOAuthToken\s*\(\s*\)\s*{[^{}]*(?:{[^{}]*}[^{}]*)*}') {
     $oldCheckOAuthToken = $Matches[0]
-    $newContent = $newContent.Replace($oldCheckOAuthToken, 
-        "async function checkOAuthToken() {`n" + 
-        ($patchContent -split 'async function checkOAuthToken\(\) {')[1].Split('function handleSidebarConnection')[0].Trim() + 
+    $newContent = $newContent.Replace($oldCheckOAuthToken,
+        "async function checkOAuthToken() {`n" +
+        ($patchContent -split 'async function checkOAuthToken\(\) {')[1].Split('function handleSidebarConnection')[0].Trim() +
         "`n}")
     Write-ColoredOutput "Replaced checkOAuthToken function" "Green"
 } else {
@@ -109,9 +109,9 @@ if ($newContent -match '(?s)async\s+function\s+checkOAuthToken\s*\(\s*\)\s*{[^{}
 # Replace handleSidebarConnection function
 if ($newContent -match '(?s)function\s+handleSidebarConnection\s*\(\s*port\s*\)\s*{[^{}]*(?:{[^{}]*}[^{}]*)*}') {
     $oldHandleSidebarConnection = $Matches[0]
-    $newContent = $newContent.Replace($oldHandleSidebarConnection, 
-        "function handleSidebarConnection(port) {`n" + 
-        ($patchContent -split 'function handleSidebarConnection\(port\) {')[1].Trim() + 
+    $newContent = $newContent.Replace($oldHandleSidebarConnection,
+        "function handleSidebarConnection(port) {`n" +
+        ($patchContent -split 'function handleSidebarConnection\(port\) {')[1].Trim() +
         "`n}")
     Write-ColoredOutput "Replaced handleSidebarConnection function" "Green"
 } else {
@@ -125,14 +125,14 @@ try {
 } catch {
     Write-ColoredOutput "ERROR: Failed to write modified content to background.js: $_" "Red"
     Write-ColoredOutput "Restoring from backup..." "Yellow"
-    
+
     try {
         Copy-Item -Path $backupPath -Destination $backgroundJsPath -Force
         Write-ColoredOutput "Restored original file from backup" "Green"
     } catch {
         Write-ColoredOutput "ERROR: Failed to restore from backup: $_" "Red"
     }
-    
+
     exit 1
 }
 
@@ -143,7 +143,7 @@ Write-ColoredOutput "2. Improved token status endpoint URL and error handling" "
 Write-ColoredOutput "3. Enhanced authentication status tracking and notification" "White"
 Write-ColoredOutput "4. Added fallback mechanisms to ensure UI updates correctly" "White"
 Write-ColoredOutput "5. Fixed communication between background script and sidebar" "White"
-Write-ColoredOutput "`nTo test the changes:" "Yellow" 
+Write-ColoredOutput "`nTo test the changes:" "Yellow"
 Write-ColoredOutput "1. Reload the extension" "White"
 Write-ColoredOutput "2. Open the sidebar and attempt to login" "White"
 Write-ColoredOutput "3. Verify the UI updates correctly after authentication" "White"

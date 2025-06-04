@@ -1,6 +1,6 @@
 ---
 description: Rules for the creation and refactoring of components
-globs: 
+globs:
 ---
 # Misc
 
@@ -42,6 +42,4 @@ src/
 ├── public/           # Static assets (images, fonts)
 ├── styles/           # Global CSS or Tailwind configuration files
 └── next.config.js    # Next.js configuration file
-</File Structure Example>    
-
-
+</File Structure Example>

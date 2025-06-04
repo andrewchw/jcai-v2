@@ -1,9 +1,9 @@
 ---
 description: When commiting to git use this message best practice
-globs: 
+globs:
 ---
 ## Commit Reminder
-- When you finish applying changes, the last line of the message should say "💾 Don't forget to commit!" 
+- When you finish applying changes, the last line of the message should say "💾 Don't forget to commit!"
 
 ## Commit Message Best Practice
 - Always prefix Commit Messages in the following way. No exceptions!

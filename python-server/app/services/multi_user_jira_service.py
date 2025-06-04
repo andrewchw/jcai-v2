@@ -5,7 +5,7 @@ This module extends the regular JiraService to support multiple users.
 """
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 from app.services.db_token_service import DBTokenService
 from app.services.jira_service import JiraService
@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 class MultiUserJiraService:
     """
     Service for managing Jira API interactions for multiple users.
-
     This service creates and manages JiraService instances for individual users.
     """
 
@@ -27,7 +26,7 @@ class MultiUserJiraService:
         self.db = db
         self.user_service = UserService(db)
         self.token_service = DBTokenService(db)
-        self._jira_services = {}  # user_id -> JiraService
+        self._jira_services: Dict[str, JiraService] = {}  # user_id -> JiraService
 
     def get_jira_service(self, user_id: str) -> Optional[JiraService]:
         """
@@ -45,10 +44,11 @@ class MultiUserJiraService:
         token = self.token_service.get_token(user_id, "jira")
         if not token:
             logger.warning(f"No token found for user {user_id}")
-            return None
-
-        # Convert token to dict format
+            return None  # Convert token to dict format
         token_dict = self.token_service.token_to_dict(token)
+        if not token_dict:
+            logger.warning(f"Failed to convert token to dict for user {user_id}")
+            return None
 
         # Create a new service
         service = JiraService()
@@ -144,10 +144,9 @@ class MultiUserJiraService:
             user_data: Dictionary with user data
 
         Returns:
-            User ID
-        """
+            User ID"""
         user = self.user_service.get_or_create_user(user_data)
-        return user.id
+        return str(user.id)
 
     # Jira Action Methods for Chat Integration
 
@@ -174,17 +173,39 @@ class MultiUserJiraService:
             summary = issue_data.get("summary", "New task from chatbot")
             description = issue_data.get("description", "")
             issue_type = issue_data.get("issuetype", {}).get("name", "Task")
-
-            # Optional fields
-            assignee = None
+            # Optional fields - JiraService.create_issue expects Optional[str] for assignee
+            assignee: Optional[str] = None
+            assignee_additional_fields = {}
             if "assignee" in issue_data:
-                assignee = issue_data["assignee"].get("name")
+                assignee_data = issue_data["assignee"]
+                # Handle both accountId (preferred for Jira Cloud) and name (fallback)
+                if isinstance(assignee_data, dict):
+                    if "accountId" in assignee_data:
+                        # For Jira Cloud, use accountId in additional_fields instead of assignee parameter
+                        assignee_additional_fields["assignee"] = {
+                            "accountId": assignee_data["accountId"]
+                        }
+                    elif "name" in assignee_data:
+                        assignee = assignee_data[
+                            "name"
+                        ]  # Extract name for legacy                else:
+                    # Handle string assignee (legacy support)
+                    if isinstance(assignee_data, str):
+                        assignee = assignee_data
+                    # If it's not a string or dict with expected keys, skip assignee
 
             additional_fields = {}
             if "priority" in issue_data:
-                additional_fields["priority"] = issue_data[
-                    "priority"
-                ]  # Create the issue using JiraService
+                additional_fields["priority"] = issue_data["priority"]
+
+            # Handle due date
+            if "duedate" in issue_data:
+                additional_fields["duedate"] = issue_data["duedate"]
+
+            # Add assignee additional fields if using accountId
+            additional_fields.update(assignee_additional_fields)
+
+            # Create the issue using JiraService
             result = jira_service.create_issue(
                 project_key=project_key,
                 summary=summary,

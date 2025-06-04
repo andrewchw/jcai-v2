@@ -4,28 +4,26 @@ This module provides functions to help debug authentication issues.
 """
 
 import json
-import os
 import logging
+import os
 from datetime import datetime
 from pathlib import Path
 
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("oauth_debug.log"),
-        logging.StreamHandler()
-    ]
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.FileHandler("oauth_debug.log"), logging.StreamHandler()],
 )
 logger = logging.getLogger("auth_debug")
+
 
 def log_token_details(token_data, source="manual_check"):
     """Log details about the current token state"""
     if not token_data:
         logger.warning(f"[{source}] No token data available")
         return
-    
+
     # Remove sensitive information for logging
     safe_token = {}
     for key, value in token_data.items():
@@ -37,7 +35,7 @@ def log_token_details(token_data, source="manual_check"):
                 safe_token[key] = "[REDACTED]"
         else:
             safe_token[key] = value
-    
+
     # Add expiration information
     if "expires_at" in token_data:
         expires_at = datetime.fromtimestamp(token_data["expires_at"])
@@ -46,8 +44,9 @@ def log_token_details(token_data, source="manual_check"):
         minutes = delta.total_seconds() / 60
         safe_token["expires_in_minutes"] = round(minutes, 2)
         safe_token["is_expired"] = minutes <= 0
-        
+
     logger.info(f"[{source}] Token details: {json.dumps(safe_token, indent=2)}")
+
 
 def save_token_backup():
     """Create a backup of the current token file"""
@@ -55,30 +54,31 @@ def save_token_backup():
     if not token_path.exists():
         logger.warning("No token file found to backup")
         return None
-        
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     backup_dir = Path("token_backups")
     backup_dir.mkdir(exist_ok=True)
-    
+
     backup_path = backup_dir / f"oauth_token_{timestamp}.json"
-    
+
     try:
         with open(token_path, "r") as src:
             token_data = json.load(src)
-            
+
         with open(backup_path, "w") as dest:
             json.dump(token_data, dest, indent=4)
-            
+
         logger.info(f"Created token backup at {backup_path}")
         return str(backup_path)
     except Exception as e:
         logger.error(f"Failed to backup token: {str(e)}")
         return None
 
+
 def check_auth_state():
     """Check and log the current authentication state"""
     logger.info("Checking authentication state")
-    
+
     # Check token file
     token_path = Path("oauth_token.json")
     if token_path.exists():
@@ -91,8 +91,9 @@ def check_auth_state():
             logger.error(f"Error reading token file: {str(e)}")
     else:
         logger.warning("No token file found")
-    
+
     return False
+
 
 # Create a decorator to log function calls for debugging
 def log_auth_function(func):
@@ -105,7 +106,9 @@ def log_auth_function(func):
         except Exception as e:
             logger.error(f"Error in {func.__name__}: {str(e)}", exc_info=True)
             raise
+
     return wrapper
+
 
 if __name__ == "__main__":
     # When run directly, perform a check

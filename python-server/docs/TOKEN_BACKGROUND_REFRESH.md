@@ -59,19 +59,19 @@ class OAuthTokenService:
     def __init__(self, client_id, client_secret, token_url, token_file,
                  check_interval=300, refresh_threshold=600, max_retries=3):
         # Initialize service
-        
+
     def start(self):
         # Start background thread
-        
+
     def stop(self):
         # Stop background thread
-        
+
     def add_event_handler(self, handler):
         # Add event notification handler
-        
+
     def refresh_token(self, token, force=False):
         # Refresh token if needed or forced
-        
+
     def _background_refresh_loop(self):
         # Background thread function
 ```

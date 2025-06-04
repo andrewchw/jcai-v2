@@ -82,9 +82,9 @@ This section demonstrates that the OAuth token is working correctly by connectin
 ### Token Management
 
 1. **Viewing Token Status**: The token status is displayed at the top of the dashboard with a countdown timer.
-   
+
 2. **Manual Token Refresh**: Click the "Force Token Refresh" button to manually trigger a token refresh operation.
-   
+
 3. **Monitoring Events**: The event history section shows a log of all token-related events.
 
 ### Jira Integration Testing
@@ -92,7 +92,7 @@ This section demonstrates that the OAuth token is working correctly by connectin
 1. **Loading Projects**:
    - Click the "Load Jira Projects" button in the Projects tab
    - A grid of project cards will be displayed
-   
+
 2. **Loading Issues**:
    - Select a project from the dropdown in the Issues tab
    - Click "Load Issues" to retrieve and display issues from that project

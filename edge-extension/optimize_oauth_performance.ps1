@@ -17,12 +17,12 @@ function Write-ColoredOutput {
         [string]$Message,
         [string]$Color = "White"
     )
-    
+
     Write-Host $Message -ForegroundColor $Color
 }
 
 Write-ColoredOutput "`n=====================================" "Yellow"
-Write-ColoredOutput "OAUTH PERFORMANCE OPTIMIZATION" "Yellow" 
+Write-ColoredOutput "OAUTH PERFORMANCE OPTIMIZATION" "Yellow"
 Write-ColoredOutput "=====================================`n" "Yellow"
 
 # Check if files exist
@@ -42,7 +42,7 @@ $oauthCallbackCode = Select-String -Path $backgroundJsPath -Pattern "if \(tabId 
 
 if ($oauthCallbackCode) {
     Write-ColoredOutput "  Found OAuth callback handler in background.js" "Green"
-    
+
     # Check for direct updates to auth state
     $authStateUpdate = Select-String -Path $backgroundJsPath -Pattern "tokenState\.isAuthenticated = true"
     if ($authStateUpdate) {
@@ -61,7 +61,7 @@ $tokenStatusCheck = Select-String -Path $backgroundJsPath -Pattern "checkOAuthTo
 
 if ($tokenStatusCheck) {
     Write-ColoredOutput "  Found token status check function" "Green"
-    
+
     # Look for any setTimeout delays
     $delayInCode = Select-String -Path $backgroundJsPath -Pattern "setTimeout.*checkOAuthToken"
     if ($delayInCode) {
@@ -79,7 +79,7 @@ $authStatusHandler = Select-String -Path $sidebarJsPath -Pattern "handleAuthStat
 
 if ($authStatusHandler) {
     Write-ColoredOutput "  Found authentication status handler in sidebar.js" "Green"
-    
+
     # Look for immediate UI updates
     $immediateUIUpdate = Select-String -Path $sidebarJsPath -Pattern "isAuthenticated.*innerHTML.*Authenticated"
     if ($immediateUIUpdate) {
@@ -104,10 +104,10 @@ $response = Read-Host
 
 if ($response.ToLower() -eq 'y') {
     Write-ColoredOutput "`nApplying performance fixes..." "Magenta"
-    
+
     # Add your code here to apply the fixes
     # This would involve editing the background.js and sidebar.js files
-    
+
     Write-ColoredOutput "Performance fixes applied successfully!" "Green"
 } else {
     Write-ColoredOutput "`nNo changes were made. You can apply the fixes manually following the recommendations above." "Yellow"

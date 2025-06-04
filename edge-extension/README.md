@@ -31,7 +31,7 @@ This Microsoft Edge extension provides a chatbot interface for managing JIRA act
 - `html/sidebar.html`: Main UI layout
 - `css/sidebar.css`: Styling for the sidebar
 - `js/background.js`: Background service worker for API communication
-- `js/sidebar.js`: UI interaction logic 
+- `js/sidebar.js`: UI interaction logic
 - `js/content.js`: Content script for web page integration
 
 ## Building for Production

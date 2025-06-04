@@ -1,15 +1,15 @@
-import sys
-import os
 import logging
+import os
+import sys
 
 # Configure logging
 logging.basicConfig(
     level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler('multi_user_test_wrapper.log')
-    ]
+        logging.FileHandler("multi_user_test_wrapper.log"),
+    ],
 )
 
 logger = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 # Run the test_multi_user script
 try:
     from app.scripts.test_multi_user import run_tests
-    
+
     if __name__ == "__main__":
         logger.info("Running multi-user tests")
         success = run_tests()

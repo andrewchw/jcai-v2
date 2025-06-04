@@ -1,7 +1,7 @@
 /**
  * Diagnostic script for JIRA Chatbot Assistant OAuth callback page
  * This script helps identify issues with the OAuth callback page
- * 
+ *
  * Usage:
  * 1. Load this script in the browser console when on the callback page
  * 2. Run diagCallback() to see diagnostic information

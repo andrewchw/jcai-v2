@@ -11,7 +11,7 @@ function Write-ColoredOutput {
         [string]$Message,
         [string]$Color = "White"
     )
-    
+
     Write-Host $Message -ForegroundColor $Color
 }
 
@@ -21,14 +21,14 @@ function Test-Endpoint {
         [string]$Description,
         [hashtable]$Headers = @{}
     )
-    
+
     $url = "http://localhost:8000$Endpoint"
     Write-ColoredOutput "Testing $Description endpoint: $url" "Cyan"
-    
+
     try {
         $response = Invoke-WebRequest -Uri $url -Method Get -UseBasicParsing -Headers $Headers
         Write-ColoredOutput "  Status: $($response.StatusCode) $($response.StatusDescription)" "Green"
-        
+
         # Try to extract content to see how the page responds
         if ($response.Content) {
             if ($response.Content.Length -gt 500) {
@@ -36,34 +36,34 @@ function Test-Endpoint {
             } else {
                 Write-ColoredOutput "  Content: $($response.Content)" "Gray"
             }
-            
+
             # Look for specific patterns
             if ($response.Content -match "authentication.*failed" -or $response.Content -match "auth.*failed") {
                 Write-ColoredOutput "  WARNING: Response contains 'authentication failed' message even though it might be successful!" "Yellow"
             }
-            
+
             if ($response.Content -match "authentication.*success" -or $response.Content -match "auth.*success") {
                 Write-ColoredOutput "  INFO: Response contains 'authentication success' message" "Green"
             }
         }
-        
+
         return $true
     } catch {
         $statusCode = $null
         try { $statusCode = $_.Exception.Response.StatusCode.value__ } catch {}
-        
+
         Write-ColoredOutput "  Failed with status: $statusCode" "Red"
         if ($_.Exception.Message) {
             Write-ColoredOutput "  Error details: $($_.Exception.Message)" "Red"
         }
-        
+
         return $false
     }
 }
 
 # Welcome message
 Write-ColoredOutput "`n=====================================" "Yellow"
-Write-ColoredOutput "OAUTH CALLBACK PAGE DIAGNOSTICS" "Yellow" 
+Write-ColoredOutput "OAUTH CALLBACK PAGE DIAGNOSTICS" "Yellow"
 Write-ColoredOutput "=====================================`n" "Yellow"
 
 # Check if server is running
@@ -97,14 +97,14 @@ Write-ColoredOutput "=====================================`n" "Yellow"
 if (-not $successCallback -or -not $failedCallback -or -not $codeCallback) {
     Write-ColoredOutput "There appear to be issues with the OAuth callback pages." "Red"
     Write-ColoredOutput "The server may not be correctly handling the callback parameters." "Red"
-    
+
     Write-ColoredOutput "`nPOTENTIAL SOLUTIONS:" "Cyan"
     Write-ColoredOutput "1. Check the server logs for errors related to the OAuth callback processing" "White"
     Write-ColoredOutput "2. Verify that the server's callback template is correctly processing the 'success' parameter" "White"
     Write-ColoredOutput "3. Restart the server to ensure any code changes take effect" "White"
 } else {
     Write-ColoredOutput "The OAuth callback pages appear to be responding, but there may be issues with the content." "Yellow"
-    
+
     Write-ColoredOutput "`nRECOMMENDED NEXT STEPS:" "Cyan"
     Write-ColoredOutput "1. When you login with the extension, check the browser URL to see if it contains 'success=true'" "White"
     Write-ColoredOutput "2. If it contains 'code=' but no 'success=' parameter, the extension should still recognize it as success" "White"

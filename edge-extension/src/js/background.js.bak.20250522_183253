@@ -279,12 +279,12 @@ async function handleSuccessfulLogin() {
         } catch(err) {
             console.error('Error sending token status message:', err);
         }
-    
+
     console.log('Sent authentication success messages to sidebars');
     }
 
     /**
-     * Notify all sidebars about authentication status 
+     * Notify all sidebars about authentication status
      * @param {boolean} isAuthenticated - The current authentication status
      */
     async function notifySidebarsAboutAuth(isAuthenticated) {

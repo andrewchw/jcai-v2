@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the OAuth 2.0 implementation for the Microsoft Edge Chatbot Extension for Jira project. 
+This document describes the OAuth 2.0 implementation for the Microsoft Edge Chatbot Extension for Jira project.
 The implementation includes token management, background refresh, and monitoring capabilities.
 
 ## Architecture

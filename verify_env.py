@@ -2,8 +2,9 @@
 This script verifies that the Python virtual environment is set up correctly
 and that all required dependencies are installed.
 """
-import sys
 import importlib
+import sys
+
 
 def check_module(module_name):
     try:
@@ -14,11 +15,12 @@ def check_module(module_name):
         print(f"❌ {module_name} is NOT installed")
         return False
 
+
 if __name__ == "__main__":
     print(f"Python version: {sys.version}")
     print(f"Python executable: {sys.executable}")
     print("\nChecking required packages:")
-    
+
     # List of required packages from requirements.txt
     required_packages = [
         "fastapi",
@@ -33,12 +35,16 @@ if __name__ == "__main__":
         "python_multipart",
         "sqlalchemy",
         "pytest",
-        "httpx"
+        "httpx",
     ]
-    
+
     all_installed = all(check_module(pkg) for pkg in required_packages)
-    
+
     if all_installed:
-        print("\n✨ All dependencies are installed! The virtual environment is set up correctly.")
+        print(
+            "\n✨ All dependencies are installed! The virtual environment is set up correctly."
+        )
     else:
-        print("\n⚠️ Some dependencies are missing. Please run: pip install -r python-server/requirements.txt")
+        print(
+            "\n⚠️ Some dependencies are missing. Please run: pip install -r python-server/requirements.txt"
+        )

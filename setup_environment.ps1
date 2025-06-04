@@ -3,17 +3,17 @@ $ErrorActionPreference = "Stop"
 function Write-ColorOutput($ForegroundColor) {
     # Save the current color
     $CurrentForegroundColor = $host.UI.RawUI.ForegroundColor
-    
+
     # Set the new color
     $host.UI.RawUI.ForegroundColor = $ForegroundColor
-    
+
     # Write the output
     if ($args) {
         Write-Output $args
     } else {
         $input | Write-Output
     }
-    
+
     # Restore the original color
     $host.UI.RawUI.ForegroundColor = $CurrentForegroundColor
 }

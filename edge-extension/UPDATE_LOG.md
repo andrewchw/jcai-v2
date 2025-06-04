@@ -27,7 +27,7 @@
 
 1. **Load Extension**: Go to `edge://extensions/` and reload the JIRA Chatbot Assistant
 2. **Visit any website**: The hover icon should appear with the clean JIRA icon (no background)
-3. **Check appearance**: 
+3. **Check appearance**:
    - Icon should be larger and clearer (128px source scaled to 40px display)
    - No blue gradient background
    - Clean, professional appearance

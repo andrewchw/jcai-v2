@@ -12,31 +12,31 @@ function Apply-ServerFix {
     param (
         [string]$ServerPath
     )
-    
+
     $oauthMultiPath = Join-Path $ServerPath "app\api\endpoints\oauth_multi.py"
-    
+
     if (-not (Test-Path $oauthMultiPath)) {
         Write-Error "Cannot find oauth_multi.py at $oauthMultiPath"
         return $false
     }
-    
+
     Write-Host "Found oauth_multi.py at $oauthMultiPath"
     $content = Get-Content $oauthMultiPath -Raw
-    
+
     # Check if POST endpoint already exists
     if ($content -match "@router\.post\(`"\/logout`"\)") {
         Write-Host "POST logout endpoint already exists. No server-side changes needed."
         return $true
     }
-    
+
     # Find the GET logout endpoint
     if (-not ($content -match "@router\.get\(`"\/logout`"\)")) {
         Write-Error "Could not find the GET logout endpoint in oauth_multi.py"
         return $false
     }
-    
+
     Write-Host "Found GET logout endpoint, preparing to add POST endpoint..."
-    
+
     # Create the POST endpoint code to insert
     $postEndpointCode = @"
 
@@ -49,22 +49,22 @@ async def logout_post(
     # This simply calls the same implementation as the GET endpoint
     return await logout(user_id=user_id, db=db)
 "@
-    
+
     # Use a more direct approach - find the line with GET endpoint and add POST endpoint right after
     $lines = Get-Content $oauthMultiPath
     $modifiedLines = @()
     $foundGetEndpoint = $false
     $skipCount = 0
-    
+
     for ($i = 0; $i -lt $lines.Count; $i++) {
         $modifiedLines += $lines[$i]
-        
-        # When we hit the end of the GET logout function (closing brace), 
+
+        # When we hit the end of the GET logout function (closing brace),
         # append our new POST endpoint
         if (-not $foundGetEndpoint -and $lines[$i] -match "@router\.get\(`"\/logout`"\)") {
             $foundGetEndpoint = $true
         }
-        
+
         if ($foundGetEndpoint -and $lines[$i] -match "\s*}\s*$") {
             Write-Host "Found end of GET logout function at line $($i+1)"
             $modifiedLines += ""  # Add a blank line
@@ -72,13 +72,13 @@ async def logout_post(
             $foundGetEndpoint = $false  # Reset so we don't add it again
         }
     }
-    
+
     if ($modifiedLines.Count -ne $lines.Count) {
         # Backup the original file
         $backupPath = "$oauthMultiPath.bak"
         Copy-Item $oauthMultiPath $backupPath
         Write-Host "Backed up original file to $backupPath"
-        
+
         # Write the modified content
         Set-Content -Path $oauthMultiPath -Value $modifiedLines
         Write-Host "Added POST endpoint to oauth_multi.py"
@@ -94,9 +94,9 @@ function Create-BackgroundFix {
     param (
         [string]$ExtensionPath
     )
-    
+
     $backgroundFixPath = Join-Path $ExtensionPath "background_fix.js"
-    
+
     # Check if file already exists
     if (Test-Path $backgroundFixPath) {
         Write-Host "background_fix.js already exists at $backgroundFixPath"
@@ -115,19 +115,19 @@ function stopTokenChecking() {
     }
 }
 "@
-        
+
         # Create directory if it doesn't exist
         $extensionDir = [System.IO.Path]::GetDirectoryName($backgroundFixPath)
         if (-not (Test-Path $extensionDir)) {
             New-Item -ItemType Directory -Path $extensionDir -Force | Out-Null
             Write-Host "Created directory: $extensionDir"
         }
-        
+
         # Write the function to the file
         Set-Content -Path $backgroundFixPath -Value $stopTokenCheckingFunction
         Write-Host "Created background_fix.js at $backgroundFixPath"
     }
-    
+
     return $true
 }
 
@@ -138,14 +138,14 @@ Write-Host "Starting JIRA Chatbot Extension Logout Fix..."
 if (-not $ClientOnly) {
     Write-Host "`nApplying server-side fix..."
     $serverResult = Apply-ServerFix -ServerPath $ServerPath
-    
+
     if ($serverResult) {
         Write-Host "Server-side fix applied successfully!" -ForegroundColor Green
         Write-Host "You need to restart your FastAPI server for the changes to take effect."
     }
     else {
         Write-Host "Failed to apply server-side fix." -ForegroundColor Red
-        
+
         # Alternative manual instructions
         Write-Host "`nManual instructions to fix the server:" -ForegroundColor Yellow
         Write-Host "1. Open: app\api\endpoints\oauth_multi.py"
@@ -168,7 +168,7 @@ if (-not $ClientOnly) {
 if (-not $ServerOnly) {
     Write-Host "`nApplying client-side fix..."
     $clientResult = Create-BackgroundFix -ExtensionPath $ExtensionPath
-    
+
     if ($clientResult) {
         Write-Host "Client-side fix prepared successfully!" -ForegroundColor Green
         Write-Host "You need to add the stopTokenChecking function to your background.js file."

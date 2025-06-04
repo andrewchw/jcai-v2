@@ -13,7 +13,7 @@ function Write-ColoredOutput {
         [string]$Message,
         [string]$Color = "White"
     )
-    
+
     Write-Host $Message -ForegroundColor $Color
 }
 
@@ -22,10 +22,10 @@ function Test-ServerEndpoint {
         [string]$Endpoint,
         [string]$Description
     )
-    
+
     $url = "http://localhost:8000$Endpoint"
     Write-ColoredOutput "Testing $Description endpoint: $url" "Cyan"
-    
+
     try {
         $response = Invoke-WebRequest -Uri $url -Method Get -UseBasicParsing
         Write-ColoredOutput "  Status: $($response.StatusCode) $($response.StatusDescription)" "Green"

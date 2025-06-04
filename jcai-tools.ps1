@@ -101,7 +101,7 @@ $running = $true
 while ($running) {
     Show-Menu
     $choice = Read-Host "Enter your choice"
-    
+
     switch ($choice) {
         "1" { Start-PythonServer }
         "2" { Run-OAuthTroubleshooter }
@@ -113,7 +113,7 @@ while ($running) {
         "Q" { $running = $false }
         default { Write-Host "Invalid choice. Please try again." -ForegroundColor Red }
     }
-    
+
     if ($running -and $choice -ne "1") {
         Write-Host
         Read-Host "Press Enter to return to menu"

@@ -11,7 +11,7 @@ try {
     Write-Host "Server responded with status: $($response.StatusCode)" -ForegroundColor Green
     Write-Host "Response content:" -ForegroundColor Cyan
     $response.Content
-    
+
     Write-Host "`nTesting OAuth token status..." -ForegroundColor Cyan
     $tokenResponse = Invoke-WebRequest -Uri "http://localhost:8000/api/auth/oauth/token/status" -UseBasicParsing -TimeoutSec 5
     Write-Host "Token status response:" -ForegroundColor Green

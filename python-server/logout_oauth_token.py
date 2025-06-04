@@ -6,18 +6,17 @@ This script deletes the stored OAuth token and allows you to re-authenticate
 to get a new token with a refresh token.
 """
 
+import logging
 import os
 import sys
-import logging
+
 from dotenv import load_dotenv
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout)
-    ]
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
 )
 
 logger = logging.getLogger(__name__)
@@ -28,10 +27,11 @@ load_dotenv()
 # Default token file location
 TOKEN_FILE = os.getenv("TOKEN_FILE", "oauth_token.json")
 
+
 def main():
     """Main function to delete the OAuth token"""
     print("\n=== OAuth Token Logout ===\n")
-    
+
     if os.path.exists(TOKEN_FILE):
         try:
             # Delete the token file
@@ -53,6 +53,7 @@ def main():
         print("   2. Navigate to http://localhost:8000/login")
         print("   3. Authenticate with Atlassian")
         return False
+
 
 if __name__ == "__main__":
     main()

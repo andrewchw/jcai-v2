@@ -65,13 +65,13 @@ def refresh_token(token):
     try:
         # Create a new OAuth2 session
         oauth = OAuth2Session(CLIENT_ID, token=token)
-        
+
         # Check if token is expired or about to expire (within 60 seconds)
         if 'expires_at' in token:
             expires_at = token['expires_at']
             if datetime.now().timestamp() > (expires_at - 60):
                 logger.info("Token is expired or about to expire, refreshing...")
-                
+
                 # Refresh the token
                 new_token = oauth.refresh_token(
                     TOKEN_URL,
@@ -79,11 +79,11 @@ def refresh_token(token):
                     client_id=CLIENT_ID,
                     client_secret=CLIENT_SECRET
                 )
-                
+
                 # Save the new token
                 save_token(new_token)
                 return new_token
-        
+
         return token
     except Exception as e:
         logger.error(f"Error refreshing token: {str(e)}")

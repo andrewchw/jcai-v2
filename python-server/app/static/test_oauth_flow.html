@@ -60,13 +60,13 @@
 <body>
     <div class="container">
         <h1>JIRA Chatbot OAuth Test</h1>
-        
+
         <button id="loginBtn">Login to JIRA</button>
         <button id="statusBtn">Check Token Status</button>
         <button id="logoutBtn">Logout</button>
-        
+
         <div id="statusDisplay" class="status" style="display: none;"></div>
-        
+
         <h2>Response:</h2>
         <pre id="response">No response yet</pre>
     </div>
@@ -82,26 +82,26 @@
                     }
                 });
                 const data = await response.json();
-                
+
                 // Display response
                 document.getElementById('response').textContent = JSON.stringify(data, null, 2);
-                
+
                 // Open OAuth login window
                 if (data.redirect_url) {
                     // Open a window and store the reference
                     const authWindow = window.open(`${API_BASE_URL}${data.redirect_url.replace('/api', '')}`, 'oauth_window', 'width=600,height=700');
-                    
+
                     // Listen for message from the popup window
                     window.addEventListener('message', function messageHandler(event) {
                         if (event.data && event.data.type === 'oauth-success') {
                             console.log('OAuth success message received');
-                            
+
                             // Remove the listener
                             window.removeEventListener('message', messageHandler);
-                            
+
                             // Check token status
                             document.getElementById('statusBtn').click();
-                            
+
                             // Update status display
                             const statusDisplay = document.getElementById('statusDisplay');
                             statusDisplay.style.display = 'block';
@@ -115,19 +115,19 @@
                 document.getElementById('response').textContent = `Error: ${error.message}`;
             }
         });
-        
+
         document.getElementById('statusBtn').addEventListener('click', async () => {
             try {
                 const response = await fetch(`${API_BASE_URL}/auth/oauth/token/status`);
                 const data = await response.json();
-                
+
                 // Display response
                 document.getElementById('response').textContent = JSON.stringify(data, null, 2);
-                
+
                 // Update status display
                 const statusDisplay = document.getElementById('statusDisplay');
                 statusDisplay.style.display = 'block';
-                
+
                 if (data.status === 'active') {
                     statusDisplay.className = 'status success';
                     statusDisplay.textContent = `Token is active and expires in ${Math.floor(data.expires_in_seconds / 60)} minutes`;
@@ -140,15 +140,15 @@
                 document.getElementById('response').textContent = `Error: ${error.message}`;
             }
         });
-        
+
         document.getElementById('logoutBtn').addEventListener('click', async () => {
             try {
                 const response = await fetch(`${API_BASE_URL}/auth/oauth/logout`);
                 const data = await response.json();
-                
+
                 // Display response
                 document.getElementById('response').textContent = JSON.stringify(data, null, 2);
-                
+
                 // Update status display
                 const statusDisplay = document.getElementById('statusDisplay');
                 statusDisplay.style.display = 'block';

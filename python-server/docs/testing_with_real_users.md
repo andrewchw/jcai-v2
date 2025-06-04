@@ -37,7 +37,7 @@ As a Jira admin, create test user accounts in your Jira instance:
    - User 1: [your-chosen-email-1] with a secure password
    - User 2: [your-chosen-email-2] with a secure password
    - User 3: [your-chosen-email-3] with a secure password
-   
+
 > **Important**: Use unique, valid email addresses that you have access to, and secure passwords following your organization's password policy. The example emails and passwords shown earlier were just placeholders.
 
 Make sure these users have appropriate permissions to access the projects you want to test with.

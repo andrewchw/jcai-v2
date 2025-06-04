@@ -10,14 +10,14 @@ param(
 
 function Apply-ServerFix {
     $oauthMultiPath = Join-Path $ServerPath "app\api\endpoints\oauth_multi.py"
-    
+
     if (-not (Test-Path $oauthMultiPath)) {
         Write-Error "Cannot find oauth_multi.py at $oauthMultiPath"
         return $false
     }
-    
+
     $content = Get-Content $oauthMultiPath -Raw
-    
+
     # Check if POST endpoint already exists
     if ($content -match "router\.post\(`"\/logout`"\)") {
         Write-Host "POST logout endpoint already exists. No server-side changes needed."
@@ -27,23 +27,23 @@ function Apply-ServerFix {
     $getEndpointPattern = "@router\.get\(`"\/logout`"\)"
     if ($content -match $getEndpointPattern) {
         Write-Host "Found GET logout endpoint, adding POST endpoint..."
-        
+
         # Use a simpler approach to find the end of the function
         # We'll look for the function and all of its contents through the closing brace
         $logoutFunctionPattern = "(?s)$getEndpointPattern.*?async def logout\(.*?\).*?}\s*$"
         $functionMatch = [regex]::Match($content, $logoutFunctionPattern, [System.Text.RegularExpressions.RegexOptions]::Multiline)
-        
+
         if (-not $functionMatch.Success) {
             # Try a different approach - get the function from the decorator to the end curly brace
             $logoutFunctionPattern = "(?s)($getEndpointPattern.*?})[\r\n]+"
             $functionMatch = [regex]::Match($content, $logoutFunctionPattern, [System.Text.RegularExpressions.RegexOptions]::Multiline)
         }
-        
+
         if ($functionMatch.Success) {
             Write-Host "Successfully found the logout function"
             # The indentation doesn't really matter because we're inserting a fully formatted block
             $indentation = "    "
-            
+
             # Create the new POST endpoint
             $postEndpoint = @"
 
@@ -60,13 +60,13 @@ async def logout_post(
             $pattern = "(?s)($getEndpointPattern.*?})"
             $replacement = "$1`r`n`r`n$postEndpoint"
             $newContent = $content -replace $pattern, $replacement
-            
+
             if ($newContent -ne $content) {
                 # Backup the original file
                 $backupPath = "$oauthMultiPath.bak"
                 Copy-Item $oauthMultiPath $backupPath
                 Write-Host "Backed up original file to $backupPath"
-                
+
                 # Write the updated content
                 Set-Content -Path $oauthMultiPath -Value $newContent
                 Write-Host "Added POST endpoint to oauth_multi.py"

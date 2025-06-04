@@ -1,5 +1,5 @@
 ﻿/**
- * Handles a successful OAuth login. 
+ * Handles a successful OAuth login.
  * This function is called after a user completes OAuth authentication.
  * It ensures user ID is preserved and updates token state.
  */
@@ -9,7 +9,7 @@ async function handleSuccessfulLogin() {
 
     // Store the current user ID first to ensure we don't lose it
     const currentUserId = tokenState.userId;
-    
+
     // Get token status from API using the current user ID - IMPORTANT
     if (!currentUserId) {
         console.error('No user ID found during login completion! Using fallback USER_ID');
@@ -17,10 +17,10 @@ async function handleSuccessfulLogin() {
         // Save immediately to ensure consistency
         await chrome.storage.local.set({ tokenState });
     }
-    
+
     // Now check the token with the confirmed user ID
     const tokenStatus = await checkOAuthToken();
-    
+
     // Always consider authenticated after successful login
     const isActive = tokenStatus && (tokenStatus.valid || tokenStatus.status === "active");
 
@@ -31,10 +31,10 @@ async function handleSuccessfulLogin() {
         lastChecked: new Date().toISOString(),
         userId: currentUserId || USER_ID // Use current ID or fallback to generated one
     };
-    
+
     // Log what we're saving to storage
     console.log('Saving authenticated state with user ID:', tokenState.userId);
-    
+
     // Save to storage
     await chrome.storage.local.set({ tokenState });
 

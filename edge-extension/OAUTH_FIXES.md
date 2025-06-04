@@ -36,7 +36,7 @@ This update addresses critical issues with the OAuth authentication flow in the 
 ## Files Modified
 
 - `background.js`: Main extension script handling OAuth
-- `sidebar.js`: UI script for the extension sidebar 
+- `sidebar.js`: UI script for the extension sidebar
 
 ## Implementation Details
 

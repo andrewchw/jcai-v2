@@ -5,15 +5,14 @@ This test mimics the actual user flow through the chat interface.
 """
 
 import asyncio
+import json
 import os
 import sys
-
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-import json
 import time
 
 import requests
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 
 def test_chat_issue_creation():

@@ -1,5 +1,5 @@
 /**
- * Handles a successful OAuth login. 
+ * Handles a successful OAuth login.
  * This function is called after a user completes OAuth authentication.
  * It ensures user ID is preserved and updates token state.
  */

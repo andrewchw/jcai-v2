@@ -12,7 +12,7 @@ The JIRA Chatbot Assistant extension has been successfully updated to use the hi
 
 ### 📁 Files Modified
 1. **manifest.json**: Updated `web_accessible_resources` to reference `icon128.png`
-2. **content.js**: 
+2. **content.js**:
    - Removed gradient background (`background: transparent`)
    - Increased icon size from 24x24px to 40x40px
    - Updated to load `icon128.png` instead of `icon48.png`
@@ -27,10 +27,10 @@ The JIRA Chatbot Assistant extension has been successfully updated to use the hi
 4. **Test Functionality**: Click should open sidebar, auto-hide after 5 seconds
 
 ### What to Expect:
-✅ **Clean appearance** - No colored background, just the JIRA icon  
-✅ **Crisp quality** - High-resolution icon looks sharp on all screens  
-✅ **Professional look** - Subtle shadows and animations  
-✅ **Better integration** - Blends with any website design  
+✅ **Clean appearance** - No colored background, just the JIRA icon
+✅ **Crisp quality** - High-resolution icon looks sharp on all screens
+✅ **Professional look** - Subtle shadows and animations
+✅ **Better integration** - Blends with any website design
 
 ## 🔧 Technical Details
 

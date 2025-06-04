@@ -39,11 +39,11 @@ Start-Sleep -Seconds 2
 if (!$pythonProcess.HasExited) {
     Write-Host "Server started successfully with PID $($pythonProcess.Id)" -ForegroundColor Green
     Write-Host "Server should be accessible at: http://localhost:8000" -ForegroundColor Cyan
-    
+
     # Open health endpoint in browser to verify it's working
     Write-Host "Opening health endpoint in browser to verify..." -ForegroundColor Yellow
     Start-Process "http://localhost:8000/api/health"
-    
+
     Write-Host "`nNext steps:" -ForegroundColor Green
     Write-Host "1. Reload your Edge extension" -ForegroundColor Cyan
     Write-Host "2. Open the sidebar and check connection status" -ForegroundColor Cyan

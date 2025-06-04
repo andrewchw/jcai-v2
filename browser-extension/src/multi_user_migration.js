@@ -1,6 +1,6 @@
 /**
  * Client-side Migration Helper for Multi-user Authentication
- * 
+ *
  * This script helps migrate the browser extension to use the multi-user API.
  * Include it in your browser extension to automatically handle the migration.
  */

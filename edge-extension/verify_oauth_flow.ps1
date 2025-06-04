@@ -14,7 +14,7 @@ function Write-ColoredOutput {
         [string]$Message,
         [string]$Color = "White"
     )
-    
+
     Write-Host $Message -ForegroundColor $Color
 }
 
@@ -22,7 +22,7 @@ function Get-UserConfirmation {
     param (
         [string]$Message
     )
-    
+
     Write-ColoredOutput "`n$Message (y/n): " "Cyan" -NoNewline
     $response = Read-Host
     return $response.ToLower() -eq 'y'
@@ -34,9 +34,9 @@ function Test-ServerEndpoint {
         [string]$Description,
         [hashtable]$Parameters = @{}
     )
-    
+
     $url = "http://localhost:8000$Endpoint"
-    
+
     # Add query parameters if provided
     if ($Parameters.Count -gt 0) {
         $queryString = [System.Web.HttpUtility]::ParseQueryString([string]::Empty)
@@ -45,9 +45,9 @@ function Test-ServerEndpoint {
         }
         $url = "$url`?$queryString"
     }
-    
+
     Write-ColoredOutput "Testing $Description endpoint: $url" "Cyan"
-    
+
     try {
         $response = Invoke-WebRequest -Uri $url -Method Get -UseBasicParsing
         Write-ColoredOutput "  Status: $($response.StatusCode) $($response.StatusDescription)" "Green"
@@ -61,7 +61,7 @@ function Test-ServerEndpoint {
 
 # Welcome message
 Write-ColoredOutput "`n=====================================" "Yellow"
-Write-ColoredOutput "OAUTH FLOW VERIFICATION GUIDE" "Yellow" 
+Write-ColoredOutput "OAUTH FLOW VERIFICATION GUIDE" "Yellow"
 Write-ColoredOutput "=====================================`n" "Yellow"
 Write-ColoredOutput "This guide will walk you through testing the OAuth authentication flow in the Edge extension.`n" "White"
 Write-ColoredOutput "PREREQUISITES:" "Cyan"

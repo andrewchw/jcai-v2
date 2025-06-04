@@ -1,13 +1,15 @@
 import os
 import sys
+
+from app.core.database import get_db
+from app.services.multi_user_jira_service import MultiUserJiraService
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from app.core.database import get_db
-from app.services.multi_user_jira_service import MultiUserJiraService
 
 # This script will update the OAuth V2 endpoint to accept POST requests for logout
 # It creates a fixed version of the endpoint that can be added to oauth_multi.py
+
 
 def update_logout_endpoint():
     """
@@ -23,6 +25,7 @@ async def logout_post(
     # This simply calls the same implementation as the GET endpoint
     return await logout(user_id=user_id, db=db)
 """
+
 
 if __name__ == "__main__":
     print("Here is the code to add to oauth_multi.py:")

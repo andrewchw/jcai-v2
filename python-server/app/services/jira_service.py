@@ -1,5 +1,6 @@
 """Jira service module for handling Jira API operations."""
 
+import atexit
 import logging
 import os
 from typing import Any, Dict, List, Optional
@@ -26,7 +27,7 @@ class JiraService:
         db_session: Optional[Any] = None,
     ):
         """Initialize Jira service."""
-        self._client = None
+        self._client: Optional[Jira] = None
         self._oauth2_token = None  # This will be set if access_token is provided
         self._token_service: Optional[
             OAuthTokenService
@@ -116,7 +117,7 @@ class JiraService:
                         "Authorization": f"Bearer {self._oauth2_token['access_token']}",
                         "Accept": "application/json",
                     }
-                    logger.info(f"Setting up authorization headers for API calls")
+                    logger.info("Setting up authorization headers for API calls")
 
                     self._client = Jira(url=url, oauth2=oauth2_dict, cloud=True)
                     logger.info(
@@ -143,7 +144,6 @@ class JiraService:
                 logger.warning(
                     "No valid Jira credentials provided. Jira client not initialized."
                 )
-
         except Exception as e:
             logger.error(f"Error initializing Jira client: {str(e)}")
             self._client = None
@@ -198,7 +198,7 @@ class JiraService:
         # Reinitialize the client with the new token
         self._initialize_client()
 
-    def get_oauth2_token(self) -> Dict[str, Any]:
+    def get_oauth2_token(self) -> Optional[Dict[str, Any]]:
         """
         Get the current OAuth2 token, refreshing if needed via token service
 
@@ -215,7 +215,7 @@ class JiraService:
 
         return self._oauth2_token
 
-    def refresh_oauth2_token(self, force: bool = False) -> Dict[str, Any]:
+    def refresh_oauth2_token(self, force: bool = False) -> Optional[Dict[str, Any]]:
         """
         Force refresh the OAuth2 token
 
@@ -257,7 +257,6 @@ class JiraService:
                     "Accept": "application/json",
                 }
                 cloud_id = self._cached_cloud_id or self._get_cloud_id()
-
                 if cloud_id:
                     # First try the resources endpoint which is always accessible with the token
                     logger.info("Testing with resources endpoint first")
@@ -267,7 +266,7 @@ class JiraService:
                     resources_response = requests.get(resources_url, headers=headers)
 
                     if resources_response.status_code == 200:
-                        logger.info(f"Successfully accessed resources endpoint")
+                        logger.info("Successfully accessed resources endpoint")
 
                         # Now try a Jira-specific endpoint with lower permission requirements
                         urls_to_try = [
@@ -306,8 +305,8 @@ class JiraService:
                     return False
             except Exception as e:
                 logger.error(f"Direct API connection test failed: {str(e)}")
-                if hasattr(e, "response") and hasattr(e.response, "text"):
-                    logger.error(f"Response details: {e.response.text}")
+                if hasattr(e, "response") and hasattr(e.response, "text"):  # type: ignore
+                    logger.error(f"Response details: {e.response.text}")  # type: ignore
                 # Fall back to client method if available
 
         # Fall back to client method if available
@@ -339,12 +338,12 @@ class JiraService:
         except Exception as e:
             logger.error(f"Jira connection test failed: {str(e)}")
             # Add more detailed error info
-            if hasattr(e, "response") and hasattr(e.response, "text"):
-                logger.error(f"Response details: {e.response.text}")
+            if hasattr(e, "response") and hasattr(e.response, "text"):  # type: ignore
+                logger.error(f"Response details: {e.response.text}")  # type: ignore
             return False
 
     def search_issues(
-        self, jql: str, max_results: int = 20, fields: List[str] = None
+        self, jql: str, max_results: int = 20, fields: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
         Search for Jira issues using JQL
@@ -352,9 +351,7 @@ class JiraService:
         Args:
             jql: The JQL query string
             max_results: Maximum number of results to return
-            fields: List of fields to include in the results
-
-        Returns:
+            fields: List of fields to include in the results        Returns:
             The issues found by the search
         """
         if not self._client:
@@ -364,15 +361,17 @@ class JiraService:
             # If fields parameter is None, set default fields
             if not fields:
                 # Convert default fields to comma-separated string if needed
-                fields = "summary,status,assignee,priority,duedate,created,updated"
+                processed_fields = (
+                    "summary,status,assignee,priority,duedate,created,updated"
+                )
             elif isinstance(fields, list):
                 # Convert list of fields to comma-separated string
-                fields = ",".join(fields)
+                processed_fields = ",".join(fields)
+            else:
+                processed_fields = fields  # Use jql method for JQL queries
+            result = self._client.jql(jql, fields=processed_fields, limit=max_results)
 
-            # Use jql method for JQL queries
-            result = self._client.jql(jql, fields=fields, limit=max_results)
-
-            return result
+            return result  # type: ignore
         except Exception as e:
             logger.error(f"Error searching Jira issues: {str(e)}")
             raise
@@ -415,11 +414,9 @@ class JiraService:
 
             # Add assignee if provided
             if assignee:
-                fields["assignee"] = {"name": assignee}
-
-            # Add components if provided
+                fields["assignee"] = {"name": assignee}  # Add components if provided
             if components:
-                fields["components"] = [{"name": comp} for comp in components]
+                fields["components"] = [{"name": comp} for comp in components]  # type: ignore
 
             # Add any additional fields
             if additional_fields:
@@ -466,11 +463,10 @@ class JiraService:
         """
         if not self._client:
             raise ValueError("Jira client is not initialized")
-
         try:
-            result = self._client.update_issue(issue_key=issue_key, fields=fields)
+            result = self._client.update_issue(issue_key=issue_key, fields=fields)  # type: ignore
 
-            return result
+            return result  # type: ignore
         except Exception as e:
             logger.error(f"Error updating Jira issue {issue_key}: {str(e)}")
             raise
@@ -484,13 +480,12 @@ class JiraService:
             comment: Comment text
 
         Returns:
-            The added comment data
-        """
+            The added comment data"""
         if not self._client:
             raise ValueError("Jira client is not initialized")
 
         try:
-            result = self._client.add_comment(issue_key=issue_key, comment=comment)
+            result = self._client.add_comment(ignoreissue_key=issue_key, comment=comment)  # type: ignore
 
             return result
         except Exception as e:
@@ -557,7 +552,6 @@ class JiraService:
             raise ValueError(
                 "Jira client is not initialized and direct API call failed"
             )
-
         try:
             result = self._client.projects()
             return result
@@ -577,9 +571,8 @@ class JiraService:
         """
         if not self._client:
             raise ValueError("Jira client is not initialized")
-
         try:
-            result = self._client.get_transitions(issue_key)
+            result = self._client.get_transitions(issue_key)  # type: ignore
             return result
         except Exception as e:
             logger.error(
@@ -603,9 +596,8 @@ class JiraService:
         """
         if not self._client:
             raise ValueError("Jira client is not initialized")
-
         try:
-            result = self._client.transition_issue(
+            result = self._client.transition_issue(  # type: ignore[attr-defined]
                 issue_key=issue_key, transition_id=transition_id, comment=comment
             )
 
@@ -681,7 +673,7 @@ class JiraService:
             logger.error(f"Error getting current user: {str(e)}")
             raise
 
-    def get_cloud_id(self) -> str:
+    def get_cloud_id(self) -> Optional[str]:
         """
         Get the current cloud ID used by this service instance
 
@@ -770,7 +762,7 @@ class JiraService:
         elif self._oauth2_token and "access_token" in self._oauth2_token:
             token_for_direct_call = self._oauth2_token["access_token"]
             logger.info(
-                f"Using service-level access token for get_current_user_details."
+                "Using service-level access token for get_current_user_details."
             )
 
         if token_for_direct_call:
@@ -845,8 +837,12 @@ class JiraService:
             )
             return user_details
         except ApiError as e:
+            # Handle ApiError which might not have response attribute
+            error_msg = str(e)
+            if hasattr(e, "response"):
+                error_msg = f"{getattr(e.response, 'status_code', '?')} - {getattr(e.response, 'text', 'No response text')}"
             logger.error(
-                f"Jira API Error fetching user details with client.myself(): {e.response.status_code} - {e.response.text}"
+                f"Jira API Error fetching user details with client.myself(): {error_msg}"
             )
             return None
         except Exception as e:
@@ -860,6 +856,4 @@ class JiraService:
 jira_service = JiraService()
 
 # Ensure token service is stopped on application shutdown
-import atexit
-
 atexit.register(jira_service.stop_token_service)

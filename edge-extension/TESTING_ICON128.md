@@ -30,7 +30,7 @@ Start-Process msedge "edge://extensions/"
 ### Step 3: Test Icon Appearance
 Visit these test sites to verify the hover icon:
 - https://www.google.com
-- https://www.microsoft.com  
+- https://www.microsoft.com
 - https://www.github.com
 - Any other website
 
@@ -73,12 +73,12 @@ If you want to test the fallback text:
 
 ## Success Criteria
 
-✅ **Visual Quality**: Icon is crisp and clear (using high-res source)  
-✅ **Clean Appearance**: No background color/gradient, just the icon  
-✅ **Proper Sizing**: 40x40px display size (up from 24x24px)  
-✅ **Functionality**: Click opens sidebar, auto-hide works  
-✅ **Responsiveness**: Smooth animations and hover effects  
-✅ **Compatibility**: Works across different websites  
+✅ **Visual Quality**: Icon is crisp and clear (using high-res source)
+✅ **Clean Appearance**: No background color/gradient, just the icon
+✅ **Proper Sizing**: 40x40px display size (up from 24x24px)
+✅ **Functionality**: Click opens sidebar, auto-hide works
+✅ **Responsiveness**: Smooth animations and hover effects
+✅ **Compatibility**: Works across different websites
 
 ## Notes
 - The icon now uses transparent background for better integration

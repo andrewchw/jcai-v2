@@ -19,7 +19,7 @@ try {
     # Kill any existing server processes
     Write-Host "Stopping any existing Python server processes..." -ForegroundColor Yellow
     Get-Process -Name python | Where-Object { $_.CommandLine -like "*run.py*" } -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-    
+
     # Activate virtual environment
     Write-Host "Activating Python virtual environment..." -ForegroundColor Yellow
     if (Test-Path -Path ".\.venv\Scripts\Activate.ps1") {
@@ -30,7 +30,7 @@ try {
         & ".\.venv\Scripts\Activate.ps1"
         pip install -r python-server\requirements.txt
     }
-    
+
     # Start the server
     Write-Host "Starting Python server..." -ForegroundColor Green
     python python-server\run.py

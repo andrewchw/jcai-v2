@@ -78,31 +78,31 @@ try {
     # Basic syntax check by trying to parse the files
     $sidebarContent = Get-Content $sidebarJs -Raw
     $backgroundContent = Get-Content $backgroundJs -Raw
-    
+
     # Check for basic syntax issues
     $syntaxIssues = @()
-    
+
     # Check for unmatched braces (basic check)
     $openBraces = ($sidebarContent | Select-String -Pattern "\{" -AllMatches).Matches.Count
     $closeBraces = ($sidebarContent | Select-String -Pattern "\}" -AllMatches).Matches.Count
-    
+
     if ($openBraces -eq $closeBraces) {
         Write-Host "   ✓ Sidebar.js brace matching looks good ($openBraces pairs)" -ForegroundColor Green
     }
     else {
         Write-Host "   ✗ Sidebar.js brace mismatch: $openBraces open, $closeBraces close" -ForegroundColor Red
     }
-    
+
     $openBraces = ($backgroundContent | Select-String -Pattern "\{" -AllMatches).Matches.Count
     $closeBraces = ($backgroundContent | Select-String -Pattern "\}" -AllMatches).Matches.Count
-    
+
     if ($openBraces -eq $closeBraces) {
         Write-Host "   ✓ Background.js brace matching looks good ($openBraces pairs)" -ForegroundColor Green
     }
     else {
         Write-Host "   ✗ Background.js brace mismatch: $openBraces open, $closeBraces close" -ForegroundColor Red
     }
-    
+
 }
 catch {
     Write-Host "   ✗ Error checking syntax: $($_.Exception.Message)" -ForegroundColor Red

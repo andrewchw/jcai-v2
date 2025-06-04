@@ -7,7 +7,7 @@ Write-Host ""
 if (-not (Test-Path ".\.venv\Scripts\python.exe")) {
     Write-Host "[ERROR] Virtual environment not found!" -ForegroundColor Red
     Write-Host "Creating a new virtual environment..." -ForegroundColor Yellow
-    
+
     try {
         python -m venv .venv
     } catch {
@@ -16,7 +16,7 @@ if (-not (Test-Path ".\.venv\Scripts\python.exe")) {
         Read-Host "Press Enter to exit"
         exit 1
     }
-    
+
     Write-Host "Installing dependencies..." -ForegroundColor Yellow
     try {
         & ".\.venv\Scripts\pip" install -r python-server\requirements.txt
@@ -25,7 +25,7 @@ if (-not (Test-Path ".\.venv\Scripts\python.exe")) {
         Read-Host "Press Enter to exit"
         exit 1
     }
-    
+
     Write-Host "[SUCCESS] Virtual environment created and dependencies installed." -ForegroundColor Green
 }
 

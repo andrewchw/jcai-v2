@@ -87,7 +87,7 @@ If you can't modify the extension code, you can adapt the server to accept GET r
        method: 'POST'
    });
    ```
-   
+
    To:
    ```javascript
    await fetch(`${API_BASE_URL}/auth/oauth/v2/logout?user_id=${encodeURIComponent(tokenState.userId)}`, {

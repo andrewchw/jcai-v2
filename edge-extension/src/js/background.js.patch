@@ -27,19 +27,19 @@ function initiateLogin() {
                 // Check if this is our auth tab and if it's on the callback URL
                 if (tabId === tab.id && changeInfo.url && changeInfo.url.includes(`/callback`)) {
                     console.log('OAuth callback detected:', changeInfo.url);
-                    
+
                     // Extract success status from URL (e.g., ?success=true)
                     const url = new URL(changeInfo.url);
                     const success = url.searchParams.get('success') === 'true';
                     const isSetupExample = url.searchParams.get('setup_example') === 'true';
-                    
+
                     // Look for additional indicators of success in the URL
                     const hasCode = url.searchParams.has('code');
                     const isCallback = changeInfo.url.includes('/callback');
                     const explicitSuccess = (success === true) || (hasCode && isCallback);
-                    
+
                     console.log(`Auth callback analyzed: explicit success=${success}, hasCode=${hasCode}, isCallback=${isCallback}`);
-                    
+
                     // Only process complete auth flow (success=true), not initial redirect
                     if (explicitSuccess) {
                         console.log('Authentication successful');
@@ -98,19 +98,19 @@ async function handleSuccessfulLogin() {
 
     // First, update authentication state immediately to avoid race conditions
     tokenState.isAuthenticated = true;
-    
+
     // Save the initial authenticated state right away
     await chrome.storage.local.set({ tokenState });
-    
+
     // Notify sidebars about the initial authentication success
     await notifySidebarsAboutAuth(true);
 
     // Now check the token with the confirmed user ID to get complete token info
     const tokenStatus = await checkOAuthToken();
-    
+
     // Even if token check fails, we should remain authenticated at this point
     // as the login was already successful
-    
+
     // Update tokenState with complete info
     tokenState = {
         isAuthenticated: true,  // Always set to true on successful login
@@ -118,7 +118,7 @@ async function handleSuccessfulLogin() {
         lastChecked: new Date().toISOString(),
         userId: currentUserId // Use saved ID from before
     };
-    
+
     // Log what we're saving to storage
     console.log('Saving authenticated state with user ID:', tokenState.userId);
 
@@ -129,10 +129,10 @@ async function handleSuccessfulLogin() {
     startTokenChecking();
 
     console.log('Notifying sidebars about successful authentication');
-    
+
     // Notify sidebars about the authentication success
     await notifySidebarsAboutAuth(true);
-    
+
     // Also send token status
     try {
         chrome.runtime.sendMessage({
@@ -143,17 +143,17 @@ async function handleSuccessfulLogin() {
     } catch (err) {
         console.error('Error sending token status message:', err);
     }
-    
+
     console.log('Sent authentication success messages to sidebars');
 }
 
 /**
- * Notify all sidebars about authentication status 
+ * Notify all sidebars about authentication status
  * @param {boolean} isAuthenticated - The current authentication status
  */
 async function notifySidebarsAboutAuth(isAuthenticated) {
     console.log('Notifying all sidebars about auth status:', isAuthenticated);
-    
+
     // Method 1: Use runtime messaging (works for non-connected panels)
     try {
         chrome.runtime.sendMessage({
@@ -162,21 +162,21 @@ async function notifySidebarsAboutAuth(isAuthenticated) {
                 isAuthenticated: isAuthenticated
             }
         });
-        
+
         console.log('Sent auth status via runtime.sendMessage');
     } catch (err) {
         console.error('Error sending runtime message:', err);
     }
-    
+
     // Method 2: Use direct port connections (more reliable for connected panels)
     try {
         // Chrome Extensions API changed over time, handle multiple cases
-        const ports = chrome.extension?.getConnections ? 
-                     chrome.extension.getConnections() : 
+        const ports = chrome.extension?.getConnections ?
+                     chrome.extension.getConnections() :
                      (chrome.runtime?.connections || []);
-                     
+
         console.log(`Attempting to notify ${ports.length} direct connections`);
-        
+
         // Send to each connected port
         if (ports && ports.length > 0) {
             ports.forEach(port => {
@@ -198,11 +198,11 @@ async function notifySidebarsAboutAuth(isAuthenticated) {
     } catch (err) {
         console.error('Error accessing extension ports:', err);
     }
-    
+
     // Method 3: Store in local storage as a fallback mechanism
     // This helps when the sidebar is opened after authentication
     try {
-        await chrome.storage.local.set({ 
+        await chrome.storage.local.set({
             lastAuthStatus: {
                 isAuthenticated: isAuthenticated,
                 timestamp: Date.now()
@@ -234,53 +234,53 @@ async function checkOAuthToken() {
 
         if (!response.ok) {
             console.error(`Token status check failed with status: ${response.status}`);
-            
+
             // In case of a 401/403 Unauthorized response, mark as not authenticated
             if (response.status === 401 || response.status === 403) {
                 console.log('Received unauthorized response, marking as not authenticated');
                 tokenState.isAuthenticated = false;
                 await chrome.storage.local.set({ tokenState });
-                
+
                 // Notify sidebars that authentication is now invalid
                 await notifySidebarsAboutAuth(false);
             }
-            
+
             throw new Error('Failed to check token status');
         }
-        
+
         const data = await response.json();
         console.log('Token status (detailed):', JSON.stringify(data, null, 2));
 
         // Update auth state based on token status
         // Server might return different formats, check all possible fields
-        const isActive = data && 
-                        (data.status === "active" || 
-                        data.valid === true || 
+        const isActive = data &&
+                        (data.status === "active" ||
+                        data.valid === true ||
                         data.expires_in_seconds > 0);
-                        
+
         console.log('Token active state determined:', isActive);
-        
+
         // If authentication state changed, update UI
         if (tokenState.isAuthenticated !== isActive) {
             console.log(`Authentication state changed from ${tokenState.isAuthenticated} to ${isActive}`);
-            
+
             // Always update isAuthenticated based on token status
             tokenState.isAuthenticated = isActive;
-            
+
             // Notify sidebars about the change
             await notifySidebarsAboutAuth(isActive);
         } else {
             // Always update isAuthenticated based on token status
             tokenState.isAuthenticated = isActive;
         }
-        
+
         // Update token data
         tokenState.tokenData = data;
         tokenState.lastChecked = new Date().toISOString();
-        
+
         // Save to storage
         await chrome.storage.local.set({ tokenState });
-        
+
         // Always send token status update, even if auth state didn't change
         try {
             chrome.runtime.sendMessage({
@@ -304,7 +304,7 @@ async function checkOAuthToken() {
  */
 function handleSidebarConnection(port) {
     console.log('Sidebar connected');
-    
+
     // Verify we have the latest authentication state before sending to sidebar
     try {
         // Send initial token state
@@ -314,7 +314,7 @@ function handleSidebarConnection(port) {
                 isAuthenticated: tokenState.isAuthenticated
             }
         });
-        
+
         // Also send token data if we have it
         if (tokenState.tokenData) {
             port.postMessage({
@@ -322,12 +322,12 @@ function handleSidebarConnection(port) {
                 payload: tokenState.tokenData
             });
         }
-        
+
         console.log('Sent initial token state to sidebar:', tokenState.isAuthenticated);
     } catch (err) {
         console.error('Error sending initial token state to sidebar:', err);
     }
-    
+
     // Listen for messages from sidebar
     port.onMessage.addListener(async (message) => {
         console.log('Received message from sidebar:', message);
@@ -337,7 +337,7 @@ function handleSidebarConnection(port) {
                 case 'login':
                     initiateLogin();
                     break;
-    
+
                 case 'logout':
                     await performLogout();
                     port.postMessage({
@@ -347,7 +347,7 @@ function handleSidebarConnection(port) {
                         }
                     });
                     break;
-    
+
                 case 'check-token':
                     const tokenStatus = await checkOAuthToken();
                     port.postMessage({
@@ -355,7 +355,7 @@ function handleSidebarConnection(port) {
                         payload: tokenStatus || { valid: false, status: "unknown" }
                     });
                     break;
-    
+
                 case 'get-jira-projects':
                     const projects = await fetchJiraProjects();
                     port.postMessage({
@@ -363,7 +363,7 @@ function handleSidebarConnection(port) {
                         payload: projects
                     });
                     break;
-    
+
                 case 'get-jira-tasks':
                     const filters = message.payload || {};
                     const tasks = await fetchJiraTasks(filters);
@@ -372,13 +372,13 @@ function handleSidebarConnection(port) {
                         payload: tasks
                     });
                     break;
-    
+
                 default:
                     console.warn('Unknown message type:', message.type);
             }
         } catch (error) {
             console.error('Error handling sidebar message:', error);
-            
+
             // Send error back to sidebar
             try {
                 port.postMessage({

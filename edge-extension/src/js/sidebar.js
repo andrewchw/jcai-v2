@@ -12,7 +12,8 @@ const elements = {
     messagesContainer: document.getElementById('messages-container'),
     userInput: document.getElementById('user-input'),
     sendButton: document.getElementById('send-button'),
-    clearButton: document.getElementById('clear-button'),    // Tasks
+    clearButton: document.getElementById('clear-button'),
+    helpButton: document.getElementById('help-button'),// Tasks
     projectFilter: document.getElementById('project-filter'),
     statusFilter: document.getElementById('status-filter'),
     tasksList: document.getElementById('tasks-list'),
@@ -267,12 +268,11 @@ function setupEventListeners() {
             e.preventDefault();
             await sendMessage();
         }
-    });
-
-    elements.sendButton.addEventListener('click', async () => {
+    }); elements.sendButton.addEventListener('click', async () => {
         await sendMessage();
     });
-    elements.clearButton.addEventListener('click', clearChat);    // Filter changes
+    elements.clearButton.addEventListener('click', clearChat);
+    elements.helpButton.addEventListener('click', showHelpMessage);// Filter changes
     elements.projectFilter.addEventListener('change', loadTasks);
     elements.statusFilter.addEventListener('change', loadTasks);
 
@@ -1162,6 +1162,38 @@ function initiateLogin() {
  */
 function initiateLogout() {
     port.postMessage({ type: 'logout' });
+}
+
+/**
+ * Show help message with command examples
+ */
+function showHelpMessage() {
+    const helpMessage = `
+        <div class="message-content">
+            <strong>📋 Command Examples:</strong><br><br>
+
+            <strong>Create Issues:</strong><br>
+            • Summary: "Fix login bug", Assignee: "John Doe", Due Date: "Friday" for Create Issue<br>
+            • Create task with summary="Update docs" assignee="Alice"<br>
+            • New issue: "Database optimization", due_date="next week"<br><br>
+
+            <strong>Due Date Options:</strong><br>
+            • "today", "tomorrow", "Friday", "next week", "2025-06-01"<br><br>
+
+            <strong>Other Commands:</strong><br>
+            • "Show my open tasks"<br>
+            • "List issues assigned to me"<br>
+            • "Update PROJ-123 priority to high"<br>
+            • "Assign PROJ-456 to Alice"<br><br>
+
+            <strong>Tips:</strong><br>
+            • Use quotes around multi-word values<br>
+            • Separate fields with commas<br>
+            • Be specific with field names (Summary, Assignee, Due Date)
+        </div>
+    `;
+
+    addMessage(helpMessage, 'system');
 }
 
 // Initialize when DOM is loaded

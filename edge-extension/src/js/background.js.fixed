@@ -18,19 +18,19 @@ async function handleSuccessfulLogin() {
 
     // First, update authentication state immediately to avoid race conditions
     tokenState.isAuthenticated = true;
-    
+
     // Save the initial authenticated state right away
     await chrome.storage.local.set({ tokenState });
-    
+
     // Notify sidebars about the initial authentication success
     await notifySidebarsAboutAuth(true);
 
     // Now check the token with the confirmed user ID to get complete token info
     const tokenStatus = await checkOAuthToken();
-    
+
     // Even if token check fails, we should remain authenticated at this point
     // as the login was already successful
-    
+
     // Update tokenState with complete info
     tokenState = {
         isAuthenticated: true,  // Always set to true on successful login
@@ -38,7 +38,7 @@ async function handleSuccessfulLogin() {
         lastChecked: new Date().toISOString(),
         userId: currentUserId // Use saved ID from before
     };
-    
+
     // Log what we're saving to storage
     console.log('Saving authenticated state with user ID:', tokenState.userId);
 
@@ -49,10 +49,10 @@ async function handleSuccessfulLogin() {
     startTokenChecking();
 
     console.log('Notifying sidebars about successful authentication');
-    
+
     // Notify sidebars using our dedicated function (replaces direct messaging)
     await notifySidebarsAboutAuth(true);
-    
+
     // Also send token status
     try {
         chrome.runtime.sendMessage({
@@ -63,17 +63,17 @@ async function handleSuccessfulLogin() {
     } catch (err) {
         console.error('Error sending token status message:', err);
     }
-    
+
     console.log('Sent authentication success messages to sidebars');
 }
 
 /**
- * Notify all sidebars about authentication status 
+ * Notify all sidebars about authentication status
  * @param {boolean} isAuthenticated - The current authentication status
  */
 async function notifySidebarsAboutAuth(isAuthenticated) {
     console.log('Notifying all sidebars about auth status:', isAuthenticated);
-    
+
     // Method 1: Use runtime messaging (works for non-connected panels)
     try {
         chrome.runtime.sendMessage({
@@ -82,21 +82,21 @@ async function notifySidebarsAboutAuth(isAuthenticated) {
                 isAuthenticated: isAuthenticated
             }
         });
-        
+
         console.log('Sent auth status via runtime.sendMessage');
     } catch (err) {
         console.error('Error sending runtime message:', err);
     }
-    
+
     // Method 2: Use direct port connections (more reliable for connected panels)
     try {
         // Chrome Extensions API changed over time, handle multiple cases
-        const ports = chrome.extension?.getConnections ? 
-                     chrome.extension.getConnections() : 
+        const ports = chrome.extension?.getConnections ?
+                     chrome.extension.getConnections() :
                      (chrome.runtime?.connections || []);
-                     
+
         console.log(`Attempting to notify ${ports.length} direct connections`);
-        
+
         // Send to each connected port
         if (ports && ports.length > 0) {
             ports.forEach(port => {
@@ -118,11 +118,11 @@ async function notifySidebarsAboutAuth(isAuthenticated) {
     } catch (err) {
         console.error('Error accessing extension ports:', err);
     }
-    
+
     // Method 3: Store in local storage as a fallback mechanism
     // This helps when the sidebar is opened after authentication
     try {
-        await chrome.storage.local.set({ 
+        await chrome.storage.local.set({
             lastAuthStatus: {
                 isAuthenticated: isAuthenticated,
                 timestamp: Date.now()
