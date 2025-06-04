@@ -851,6 +851,217 @@ class JiraService:
             )
             return None
 
+    def find_user_by_display_name(self, display_name: str) -> Optional[Dict[str, Any]]:
+        """
+        Find a user by display name using Jira's user search API.
+
+        Args:
+            display_name: The display name to search for (e.g., "Anson Chan")
+
+        Returns:
+            Dictionary with user info including accountId, or None if not found
+        """
+        try:
+            logger.info(f"Searching for user by display name: {display_name}")
+
+            # Use direct API call if OAuth token is available
+            if self._oauth2_token and "access_token" in self._oauth2_token:
+                headers = {
+                    "Authorization": f"Bearer {self._oauth2_token['access_token']}",
+                    "Accept": "application/json",
+                }
+                cloud_id = self._cached_cloud_id or self._get_cloud_id()
+
+                if cloud_id:
+                    # Try user search API endpoint
+                    # We'll try both v2 and v3 APIs and different query parameters
+                    urls_to_try = [
+                        f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/user/search?query={display_name}",
+                        f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/2/user/search?query={display_name}",
+                        f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/user/search?displayName={display_name}",
+                        f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/2/user/search?displayName={display_name}",
+                    ]
+
+                    for url in urls_to_try:
+                        try:
+                            logger.info(f"Trying user search API: {url}")
+                            response = requests.get(url, headers=headers)
+
+                            if response.status_code == 200:
+                                users = response.json()
+                                if users and isinstance(users, list) and len(users) > 0:
+                                    # Look for exact match first
+                                    for user in users:
+                                        if (
+                                            user.get("displayName", "").lower()
+                                            == display_name.lower()
+                                        ):
+                                            logger.info(
+                                                f"Found exact match for user: {display_name}"
+                                            )
+                                            return user
+
+                                    # If no exact match, return the first result
+                                    logger.info(
+                                        f"Found partial match for user: {display_name}"
+                                    )
+                                    return users[0]
+                                else:
+                                    logger.info(
+                                        f"No users found for query: {display_name}"
+                                    )
+                            else:
+                                logger.warning(
+                                    f"User search failed: {response.status_code} - {response.text}"
+                                )
+
+                        except Exception as e:
+                            logger.warning(f"Error trying {url}: {str(e)}")
+                            continue
+
+                    # If direct API calls fail, return None
+                    logger.warning(
+                        f"All user search API calls failed for: {display_name}"
+                    )
+                    return None
+                else:
+                    logger.error("Could not obtain cloud ID for user search API call")
+                    return None
+
+            # Fall back to client method if available
+            if not self._client:
+                logger.error(
+                    "Jira client is not initialized and direct API call failed"
+                )
+                return None
+
+            try:
+                # Try client-based user search if available
+                if hasattr(self._client, "search_users"):
+                    users = self._client.search_users(display_name)
+                    if users and isinstance(users, list) and len(users) > 0:
+                        # Look for exact match first
+                        for user in users:
+                            if (
+                                user.get("displayName", "").lower()
+                                == display_name.lower()
+                            ):
+                                return user
+                        # Return first result if no exact match
+                        return users[0]
+                else:
+                    logger.warning("Client does not support user search")
+
+                return None
+
+            except Exception as e:
+                logger.error(f"Error searching users with client: {str(e)}")
+                return None
+
+        except Exception as e:
+            logger.error(
+                f"Error finding user by display name '{display_name}': {str(e)}"
+            )
+            return None
+
+    def get_all_users(self) -> List[Dict[str, Any]]:
+        """
+        Get all users from Jira (with pagination support).
+
+        Returns:
+            List of user dictionaries from Jira
+        """
+        try:
+            logger.info("Retrieving all users from Jira")
+            all_users = []
+            start_at = 0
+            max_results = 50  # Jira's default pagination size
+
+            # Use direct API call if OAuth token is available
+            if self._oauth2_token and "access_token" in self._oauth2_token:
+                headers = {
+                    "Authorization": f"Bearer {self._oauth2_token['access_token']}",
+                    "Accept": "application/json",
+                }
+                cloud_id = self._cached_cloud_id or self._get_cloud_id()
+
+                if cloud_id:
+                    while True:
+                        # Try different user endpoints
+                        urls_to_try = [
+                            f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/users/search?startAt={start_at}&maxResults={max_results}",
+                            f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/2/users/search?startAt={start_at}&maxResults={max_results}",
+                            f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/user/search?startAt={start_at}&maxResults={max_results}",
+                            f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/2/user/search?startAt={start_at}&maxResults={max_results}",
+                        ]
+
+                        batch_users = None
+                        for url in urls_to_try:
+                            try:
+                                logger.info(f"Trying users API: {url}")
+                                response = requests.get(url, headers=headers)
+
+                                if response.status_code == 200:
+                                    batch_users = response.json()
+                                    if batch_users and isinstance(batch_users, list):
+                                        logger.info(
+                                            f"Retrieved {len(batch_users)} users from {url}"
+                                        )
+                                        break
+                                else:
+                                    logger.warning(
+                                        f"Users API failed: {response.status_code} - {response.text}"
+                                    )
+
+                            except Exception as e:
+                                logger.warning(f"Error trying {url}: {str(e)}")
+                                continue
+
+                        if not batch_users or not isinstance(batch_users, list):
+                            logger.info("No more users to retrieve or API call failed")
+                            break
+
+                        all_users.extend(batch_users)
+
+                        # If we got fewer results than max_results, we've reached the end
+                        if len(batch_users) < max_results:
+                            break
+
+                        start_at += max_results
+
+                    logger.info(f"Retrieved total of {len(all_users)} users from Jira")
+                    return all_users
+                else:
+                    logger.error("Could not obtain cloud ID for users API call")
+
+            # Fall back to client method if available
+            if not self._client:
+                logger.error(
+                    "Jira client is not initialized and direct API call failed"
+                )
+                return []
+
+            try:
+                # Try client-based method if available
+                if hasattr(self._client, "search_users"):
+                    # Search for all users (empty query often returns all users)
+                    users = self._client.search_users("")
+                    if users and isinstance(users, list):
+                        logger.info(f"Retrieved {len(users)} users using client method")
+                        return users
+                else:
+                    logger.warning("Client does not support user search")
+
+                return []
+
+            except Exception as e:
+                logger.error(f"Error getting all users with client: {str(e)}")
+                return []
+
+        except Exception as e:
+            logger.error(f"Error retrieving all users: {str(e)}")
+            return []
+
 
 # Create a singleton instance
 jira_service = JiraService()
