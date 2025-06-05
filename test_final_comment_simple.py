@@ -43,7 +43,7 @@ def test_comment_api():
                 response_text = response_data.get("response", "")
                 print(
                     f"  Response: {response_text[:200]}{'...' if len(response_text) > 200 else ''}"
-                )                # Check if the response indicates comment success
+                )  # Check if the response indicates comment success
                 response_lower = response_text.lower()
                 if "comment" in response_lower and (
                     "added" in response_lower or "successfully" in response_lower

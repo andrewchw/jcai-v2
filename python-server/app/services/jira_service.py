@@ -107,7 +107,8 @@ class JiraService:
                             "access_token": self._oauth2_token["access_token"],
                             "token_type": self._oauth2_token.get(
                                 "token_type", "Bearer"
-                            ),                        },
+                            ),
+                        },
                     }
                     url = f"https://api.atlassian.com/ex/jira/{cloud_id}"
                     logger.info(f"Initializing Jira client with URL: {url}")
@@ -268,12 +269,13 @@ class JiraService:
                             f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/2/serverInfo",
                             f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/serverInfo",
                             f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/2/myself",
-                            f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/myself",                        ]
-                        
+                            f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/myself",
+                        ]
+
                         for url in urls_to_try:
                             logger.info(f"Making direct API call to {url}")
                             response = requests.get(url, headers=headers)
-                            
+
                             if response.status_code == 200:
                                 logger.info(f"Connection test successful using {url}")
                                 return True

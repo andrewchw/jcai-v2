@@ -407,7 +407,7 @@ async def update_issue_action(
                 return {
                     "success": False,
                     "message": "Please provide the field and value to update",
-                }        # Build the fields dictionary based on the field type
+                }  # Build the fields dictionary based on the field type
         fields: Dict[str, Any] = {}
 
         if field.lower() == "priority":
