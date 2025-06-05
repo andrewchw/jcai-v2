@@ -1,7 +1,6 @@
 """Chat endpoint for Dialogflow-inspired conversational Jira interface."""
 
 import logging
-import traceback
 from typing import Any, Dict
 
 from app.core.config import settings
@@ -14,16 +13,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
-
-# Add file logging for debugging
-file_handler = logging.FileHandler("update_issue_debug.log")
-file_handler.setLevel(logging.DEBUG)
-file_formatter = logging.Formatter(
-    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-file_handler.setFormatter(file_formatter)
-logger.addHandler(file_handler)
-logger.setLevel(logging.DEBUG)
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -44,7 +33,7 @@ async def process_chat_message(
     2. Extract entities (issue keys, usernames, dates, etc.)
     3. Check if all required entities are present
     4. If missing entities: Ask clarification question
-    5. If complete: Execute Jira action and respond
+        5. If complete: Execute Jira action and respond
     """
     try:
         # Step 1: Process message through Dialogflow-inspired pipeline first
@@ -53,18 +42,6 @@ async def process_chat_message(
         logger.info(
             f"Processed message for user {user_id}: " f"intent={llm_response['intent']}"
         )
-
-        # Add detailed logging of the LLM response structure
-        logger.info(f"FULL LLM RESPONSE: {llm_response}")
-        logger.info(
-            f"LLM RESPONSE TYPE: {llm_response.get('response_type', 'NOT_FOUND')}"
-        )
-        logger.info(f"LLM RESPONSE DICT: {llm_response.get('response', 'NOT_FOUND')}")
-        if "response" in llm_response and isinstance(llm_response["response"], dict):
-            logger.info(
-                f"LLM ACTION: {llm_response['response'].get('action', 'NOT_FOUND')}"
-            )
-        logger.info(f"LLM ENTITIES: {llm_response.get('entities', 'NOT_FOUND')}")
 
         # Step 2: Check authentication only for Jira-related intents
         jira_intents = [
@@ -109,11 +86,11 @@ async def process_chat_message(
 
             # Update response with Jira result
             if jira_result and jira_result.get("success"):
-                llm_response["response"]["text"] += f"\n\n✅{jira_result['message']}"
+                llm_response["response"]["text"] += f"\n\n??{jira_result['message']}"
                 if "issue_key" in jira_result:
                     llm_response["response"]["text"] += f" ({jira_result['issue_key']})"
             elif jira_result and not jira_result.get("success"):
-                llm_response["response"]["text"] += f"\n\n❌{jira_result['message']}"
+                llm_response["response"]["text"] += f"\n\n??{jira_result['message']}"
 
         return ChatResponse(
             text=llm_response["response"]["text"],
@@ -127,9 +104,6 @@ async def process_chat_message(
 
     except Exception as e:
         logger.error(f"Error processing chat message for user {user_id}: {str(e)}")
-        logger.error(f"Exception type: {type(e)}")
-        logger.error(f"Exception args: {e.args}")
-        logger.error(f"Full traceback: {traceback.format_exc()}")
         raise HTTPException(
             status_code=500, detail=f"Failed to process message: {str(e)}"
         )
@@ -143,13 +117,10 @@ async def execute_jira_action(
 ) -> Dict[str, Any]:
     """Execute the Jira action based on intent and entities"""
 
-    logger.info(f"EXECUTING JIRA ACTION: user_id={user_id}, action={action}")
     try:
         jira_service = MultiUserJiraService(db)
         action_type = action.get("type")
         params = action.get("parameters", {})
-
-        logger.info(f"ACTION TYPE: {action_type}, PARAMS: {params}")
 
         if action_type == "create_issue":
             return await create_issue_action(user_id, params, jira_service)
@@ -164,16 +135,14 @@ async def execute_jira_action(
         elif action_type == "add_comment":
             return await add_comment_action(user_id, params, jira_service)
         elif action_type == "update_issue":
-            logger.info(f"CALLING UPDATE_ISSUE_ACTION with params: {params}")
             return await update_issue_action(user_id, params, jira_service)
         else:
             return {"success": False, "message": f"Unknown action type: {action_type}"}
 
     except Exception as e:
-        logger.error(f"DETAILED ERROR in execute_jira_action: {str(e)}")
-        logger.error(f"ERROR TYPE: {type(e)}")
-        logger.error(f"ERROR ARGS: {e.args}")
-        logger.error(f"TRACEBACK: {traceback.format_exc()}")
+        logger.error(
+            f"Error executing Jira action {action_type} for user {user_id}: {str(e)}"
+        )
         return {"success": False, "message": f"Failed to execute action: {str(e)}"}
 
 
@@ -371,188 +340,6 @@ async def transition_issue_action(
         return {"success": False, "message": f"Failed to transition issue: {str(e)}"}
 
 
-async def update_issue_action(
-    user_id: str, params: Dict[str, Any], jira_service: MultiUserJiraService
-) -> Dict[str, Any]:
-    """Update an issue's fields (e.g., priority, summary, description)"""
-
-    try:
-        issue_key = params.get("issue_key")
-        field = params.get("field")
-        value = params.get("value")
-
-        if not issue_key:
-            return {"success": False, "message": "Missing issue key"}
-
-        # Check for direct field entities (priority, summary, etc.) if field/value not provided
-        if not field or not value:
-            # Try to extract field and value from direct entity parameters
-            field_mappings = {
-                "priority": params.get("priority"),
-                "summary": params.get("summary"),
-                "description": params.get("description"),
-                "assignee": params.get("assignee"),
-                "due_date": params.get("due_date"),
-            }
-
-            # Find the first available field
-            for field_name, field_value in field_mappings.items():
-                if field_value:
-                    field = field_name
-                    value = field_value
-                    break
-
-            # If still no field or value found, return error
-            if not field or not value:
-                return {
-                    "success": False,
-                    "message": "Please provide the field and value to update",
-                }        # Build the fields dictionary based on the field type
-        fields: Dict[str, Any] = {}
-
-        if field.lower() == "priority":
-            # Map common priority values
-            priority_map = {
-                "low": "Low",
-                "medium": "Medium",
-                "high": "High",
-                "critical": "Critical",
-                "urgent": "Highest",
-                "highest": "Highest",
-                "lowest": "Lowest",
-            }
-            priority = priority_map.get(value.lower(), value)
-            fields["priority"] = {"name": priority}
-        elif field.lower() in ["summary", "title"]:
-            fields["summary"] = value
-
-        elif field.lower() == "description":
-            fields["description"] = value
-
-        elif field.lower() == "assignee":
-            # Remove @ symbol if present
-            assignee_display_name = value.lstrip("@")
-            # Look up the user by display name to get the account ID
-            jira_service_for_lookup = jira_service.get_jira_service(user_id)
-            if jira_service_for_lookup:
-                lookup_service = JiraUserLookupService(jira_service.db)
-                user_info = lookup_service.find_user_by_display_name(
-                    assignee_display_name, jira_service_for_lookup
-                )
-                if user_info and user_info.get("accountId"):
-                    fields["assignee"] = {"accountId": user_info["accountId"]}
-                else:
-                    # Fallback to display name if user not found
-                    fields["assignee"] = {"name": assignee_display_name}
-            else:
-                fields["assignee"] = {"name": assignee_display_name}
-
-        elif field.lower() == "due_date":
-            from datetime import datetime, timedelta
-
-            due_date_str = value.lower().strip()
-
-            # Handle relative dates
-            if due_date_str in ["today"]:
-                due_date = datetime.now().strftime("%Y-%m-%d")
-            elif due_date_str in ["tomorrow"]:
-                due_date = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
-            elif due_date_str in [
-                "monday",
-                "tuesday",
-                "wednesday",
-                "thursday",
-                "friday",
-                "saturday",
-                "sunday",
-            ]:
-                # Calculate next occurrence of the specified day
-                days_of_week = {
-                    "monday": 0,
-                    "tuesday": 1,
-                    "wednesday": 2,
-                    "thursday": 3,
-                    "friday": 4,
-                    "saturday": 5,
-                    "sunday": 6,
-                }
-                target_day = days_of_week[due_date_str]
-                current_day = datetime.now().weekday()
-                days_ahead = target_day - current_day
-                if days_ahead <= 0:  # Target day already happened this week
-                    days_ahead += 7
-                due_date = (datetime.now() + timedelta(days=days_ahead)).strftime(
-                    "%Y-%m-%d"
-                )
-            elif due_date_str == "next week":
-                due_date = (datetime.now() + timedelta(weeks=1)).strftime("%Y-%m-%d")
-            elif due_date_str == "next month":
-                due_date = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
-            else:  # Assume it's already in YYYY-MM-DD format or try to parse it
-                try:
-                    datetime.strptime(value, "%Y-%m-%d")
-                    due_date = value
-                except ValueError:
-                    # If parsing fails, skip due date
-                    logger.warning(f"Could not parse due date: {value}")
-                    due_date = None
-
-            if due_date:
-                fields["duedate"] = due_date
-
-        else:
-            # For other fields, try direct assignment
-            fields[field] = value
-
-        # Update the issue using the multi-user service
-        jira_service_instance = jira_service.get_jira_service(user_id)
-        if not jira_service_instance:
-            return {
-                "success": False,
-                "message": "User not authenticated",
-            }  # Add comprehensive logging for debugging
-        logger.info(f"Updating issue {issue_key} with field '{field}' = '{value}'")
-        logger.info(f"Fields dict being sent to Jira: {fields}")
-        logger.info(f"JiraService instance type: {type(jira_service_instance)}")
-        logger.info(
-            f"JiraService client type: {type(jira_service_instance._client) if hasattr(jira_service_instance, '_client') else 'No _client attribute'}"
-        )
-
-        try:
-            result = jira_service_instance.update_issue(issue_key, fields)
-            logger.info(f"Update result: {result}")
-        except Exception as update_error:
-            logger.error(f"Detailed error in update_issue call: {str(update_error)}")
-            logger.error(f"Error type: {type(update_error)}")
-
-            # Check if it's an Atlassian API error with more details
-            if hasattr(update_error, "response"):
-                logger.error(
-                    f"HTTP Response Status: {getattr(update_error.response, 'status_code', 'Unknown')}"
-                )
-                logger.error(
-                    f"HTTP Response Text: {getattr(update_error.response, 'text', 'No response text')}"
-                )
-
-            # Check if it has other attributes
-            for attr in ["message", "args", "status_code"]:
-                if hasattr(update_error, attr):
-                    logger.error(f"Error {attr}: {getattr(update_error, attr)}")
-
-            # Re-raise the error to be caught by the outer exception handler
-            raise update_error  # The update_issue_field method returns None even on success
-        # If we reach this point without an exception, the update was successful
-        return {
-            "success": True,
-            "message": f"Updated {field} for {issue_key} to '{value}'",
-            "issue_key": issue_key,
-        }
-
-    except Exception as e:
-        logger.error(f"Error updating issue: {str(e)}")
-        return {"success": False, "message": f"Failed to update issue: {str(e)}"}
-
-
 async def search_issues_action(
     user_id: str,
     params: Dict[str, Any],
@@ -588,7 +375,7 @@ async def search_issues_action(
             if not page_issues:
                 return {
                     "success": True,
-                    "message": "🎉 No more issues to show! You've seen all the results.",
+                    "message": "?? No more issues to show! You've seen all the results.",
                 }
 
             # Format the pagination results
@@ -598,7 +385,7 @@ async def search_issues_action(
             # Header for pagination
             header = (
                 f"<div style='margin-bottom: 16px; font-size: 16px; "
-                f"font-weight: bold; color: #0052CC;'>📋 Showing issues "
+                f"font-weight: bold; color: #0052CC;'>?? Showing issues "
                 f"{current_page_start + 1}-{current_page_start + display_count} "
                 f"of {total_count}:</div>"
             )
@@ -631,7 +418,7 @@ async def search_issues_action(
                 context.clear_search_state()
                 return {
                     "success": True,
-                    "message": "🎉 No open issues found! You're all caught up! 🎉",
+                    "message": "?? No open issues found! You're all caught up! ??",
                 }
 
             # Store search results and parameters in context
@@ -645,13 +432,13 @@ async def search_issues_action(
             if total_count == 1:
                 header = (
                     f"<div style='margin-bottom: 16px; font-size: 16px; "
-                    f"font-weight: bold; color: #0052CC;'>📋 Found "
+                    f"font-weight: bold; color: #0052CC;'>?? Found "
                     f"{total_count} open issue:</div>"
                 )
             else:
                 header = (
                     f"<div style='margin-bottom: 16px; font-size: 16px; "
-                    f"font-weight: bold; color: #0052CC;'>📋 Found "
+                    f"font-weight: bold; color: #0052CC;'>?? Found "
                     f"{total_count} open issues (showing first "
                     f"{display_count}):</div>"
                 )
@@ -756,9 +543,9 @@ async def search_issues_action(
                         color: #6B778C;
                         align-items: center;
                     '>
-                        <span>👤 {assignee}</span>
-                        <span style='color: {priority_color}; font-weight: 500;'>⚡ {priority}</span>
-                        <span>📊 {status}</span>
+                        <span>?�� {assignee}</span>
+                        <span style='color: {priority_color}; font-weight: 500;'>?�� {priority}</span>
+                        <span>?? {status}</span>
                     </div>
                 </div>"""
 
@@ -780,7 +567,7 @@ async def search_issues_action(
                 font-style: italic;
                 color: #6B778C;
             '>
-                📄 {remaining} more issues available. Say "show more issues" to see them.
+                ?? {remaining} more issues available. Say "show more issues" to see them.
             </div>"""  # Add helpful action suggestions
         message += """
         <div style='
@@ -790,12 +577,12 @@ async def search_issues_action(
             border-radius: 8px;
             color: white;
         '>
-            <div style='font-weight: bold; margin-bottom: 8px;'>⚡ Quick Actions:</div>
+            <div style='font-weight: bold; margin-bottom: 8px;'>?�� Quick Actions:</div>
             <div style='font-size: 13px; line-height: 1.6;'>
-                ➕Say "create issue" to add a new one<br>
-                👤Say "assign [issue-key] to [name]" to reassign<br>
-                ✅Say "move [issue-key] to done" to update status<br>
-                🔗Click any issue key above to open in JIRA
+                ??Say "create issue" to add a new one<br>
+                ??Say "assign [issue-key] to [name]" to reassign<br>
+                ??Say "move [issue-key] to done" to update status<br>
+                ??Click any issue key above to open in JIRA
             </div>
         </div>"""
 
@@ -830,3 +617,85 @@ async def add_comment_action(
 
     except Exception as e:
         return {"success": False, "message": f"Failed to add comment: {str(e)}"}
+
+
+async def update_issue_action(
+    user_id: str, params: Dict[str, Any], jira_service: MultiUserJiraService
+) -> Dict[str, Any]:
+    """Update an issue's fields (e.g., priority, summary, description)"""
+
+    try:
+        issue_key = params.get("issue_key")
+        field = params.get("field")
+        value = params.get("value")
+
+        if not issue_key:
+            return {"success": False, "message": "Missing issue key"}
+
+        if not field or not value:
+            return {"success": False, "message": "Missing field or value to update"}
+
+        # Build the fields dictionary based on the field type
+        fields = {}
+
+        if field.lower() == "priority":
+            # Map common priority values
+            priority_map = {
+                "low": "Low",
+                "medium": "Medium",
+                "high": "High",
+                "critical": "Critical",
+                "urgent": "Highest",
+                "highest": "Highest",
+                "lowest": "Lowest",
+            }
+            priority = priority_map.get(value.lower(), value)
+            fields["priority"] = {"name": priority}
+
+        elif field.lower() in ["summary", "title"]:
+            fields["summary"] = value
+
+        elif field.lower() == "description":
+            fields["description"] = value
+
+        elif field.lower() == "assignee":
+            # Remove @ symbol if present
+            assignee_display_name = value.lstrip("@")
+            # Look up the user by display name to get the account ID
+            jira_service_for_lookup = jira_service.get_jira_service(user_id)
+            if jira_service_for_lookup:
+                lookup_service = JiraUserLookupService(jira_service.db)
+                user_info = lookup_service.find_user_by_display_name(
+                    assignee_display_name, jira_service_for_lookup
+                )
+                if user_info and user_info.get("accountId"):
+                    fields["assignee"] = {"accountId": user_info["accountId"]}
+                else:
+                    # Fallback to display name if user not found
+                    fields["assignee"] = {"name": assignee_display_name}
+            else:
+                fields["assignee"] = {"name": assignee_display_name}
+
+        else:
+            # For other fields, try direct assignment
+            fields[field] = value
+
+        # Update the issue using the multi-user service
+        jira_service_instance = jira_service.get_jira_service(user_id)
+        if not jira_service_instance:
+            return {"success": False, "message": "User not authenticated"}
+
+        result = jira_service_instance.update_issue(issue_key, fields)
+
+        if result:
+            return {
+                "success": True,
+                "message": f"Updated {field} for {issue_key} to '{value}'",
+                "issue_key": issue_key,
+            }
+        else:
+            return {"success": False, "message": f"Failed to update {issue_key}"}
+
+    except Exception as e:
+        logger.error(f"Error updating issue: {str(e)}")
+        return {"success": False, "message": f"Failed to update issue: {str(e)}"}

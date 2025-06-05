@@ -107,16 +107,11 @@ class JiraService:
                             "access_token": self._oauth2_token["access_token"],
                             "token_type": self._oauth2_token.get(
                                 "token_type", "Bearer"
-                            ),
-                        },
+                            ),                        },
                     }
                     url = f"https://api.atlassian.com/ex/jira/{cloud_id}"
                     logger.info(f"Initializing Jira client with URL: {url}")
-                    # Create custom headers for logging but don't pass to client init
-                    headers = {
-                        "Authorization": f"Bearer {self._oauth2_token['access_token']}",
-                        "Accept": "application/json",
-                    }
+                    # Log authorization setup for debugging
                     logger.info("Setting up authorization headers for API calls")
 
                     self._client = Jira(url=url, oauth2=oauth2_dict, cloud=True)
@@ -273,15 +268,13 @@ class JiraService:
                             f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/2/serverInfo",
                             f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/serverInfo",
                             f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/2/myself",
-                            f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/myself",
-                        ]
-
+                            f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/myself",                        ]
+                        
                         for url in urls_to_try:
                             logger.info(f"Making direct API call to {url}")
                             response = requests.get(url, headers=headers)
-
+                            
                             if response.status_code == 200:
-                                user_data = response.json()
                                 logger.info(f"Connection test successful using {url}")
                                 return True
                             else:
@@ -445,7 +438,7 @@ class JiraService:
 
         try:
             result = self._client.get_issue(issue_key)
-            return result
+            return result  # type: ignore
         except Exception as e:
             logger.error(f"Error getting Jira issue {issue_key}: {str(e)}")
             raise
@@ -463,8 +456,10 @@ class JiraService:
         """
         if not self._client:
             raise ValueError("Jira client is not initialized")
+
         try:
-            result = self._client.update_issue(issue_key=issue_key, fields=fields)  # type: ignore
+            # Use update_issue_field which accepts the fields parameter
+            result = self._client.update_issue_field(key=issue_key, fields=fields)  # type: ignore
 
             return result  # type: ignore
         except Exception as e:
@@ -480,12 +475,13 @@ class JiraService:
             comment: Comment text
 
         Returns:
-            The added comment data"""
+            The added comment data
+        """
         if not self._client:
             raise ValueError("Jira client is not initialized")
 
         try:
-            result = self._client.add_comment(ignoreissue_key=issue_key, comment=comment)  # type: ignore
+            result = self._client.issue_add_comment(issue_key=issue_key, comment=comment)  # type: ignore
 
             return result
         except Exception as e:

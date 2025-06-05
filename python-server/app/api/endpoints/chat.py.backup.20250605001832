@@ -16,11 +16,9 @@ from sqlalchemy.orm import Session
 logger = logging.getLogger(__name__)
 
 # Add file logging for debugging
-file_handler = logging.FileHandler("update_issue_debug.log")
+file_handler = logging.FileHandler('update_issue_debug.log')
 file_handler.setLevel(logging.DEBUG)
-file_formatter = logging.Formatter(
-    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 file_handler.setFormatter(file_formatter)
 logger.addHandler(file_handler)
 logger.setLevel(logging.DEBUG)
@@ -56,14 +54,10 @@ async def process_chat_message(
 
         # Add detailed logging of the LLM response structure
         logger.info(f"FULL LLM RESPONSE: {llm_response}")
-        logger.info(
-            f"LLM RESPONSE TYPE: {llm_response.get('response_type', 'NOT_FOUND')}"
-        )
+        logger.info(f"LLM RESPONSE TYPE: {llm_response.get('response_type', 'NOT_FOUND')}")
         logger.info(f"LLM RESPONSE DICT: {llm_response.get('response', 'NOT_FOUND')}")
-        if "response" in llm_response and isinstance(llm_response["response"], dict):
-            logger.info(
-                f"LLM ACTION: {llm_response['response'].get('action', 'NOT_FOUND')}"
-            )
+        if 'response' in llm_response and isinstance(llm_response['response'], dict):
+            logger.info(f"LLM ACTION: {llm_response['response'].get('action', 'NOT_FOUND')}")
         logger.info(f"LLM ENTITIES: {llm_response.get('entities', 'NOT_FOUND')}")
 
         # Step 2: Check authentication only for Jira-related intents
@@ -127,9 +121,6 @@ async def process_chat_message(
 
     except Exception as e:
         logger.error(f"Error processing chat message for user {user_id}: {str(e)}")
-        logger.error(f"Exception type: {type(e)}")
-        logger.error(f"Exception args: {e.args}")
-        logger.error(f"Full traceback: {traceback.format_exc()}")
         raise HTTPException(
             status_code=500, detail=f"Failed to process message: {str(e)}"
         )
@@ -149,9 +140,7 @@ async def execute_jira_action(
         action_type = action.get("type")
         params = action.get("parameters", {})
 
-        logger.info(f"ACTION TYPE: {action_type}, PARAMS: {params}")
-
-        if action_type == "create_issue":
+        logger.info(f"ACTION TYPE: {action_type}, PARAMS: {params}")        if action_type == "create_issue":
             return await create_issue_action(user_id, params, jira_service)
         elif action_type == "assign_issue":
             return await assign_issue_action(user_id, params, jira_service)
@@ -404,11 +393,10 @@ async def update_issue_action(
 
             # If still no field or value found, return error
             if not field or not value:
-                return {
-                    "success": False,
-                    "message": "Please provide the field and value to update",
-                }        # Build the fields dictionary based on the field type
-        fields: Dict[str, Any] = {}
+                return {"success": False, "message": "Please provide the field and value to update"}
+
+        # Build the fields dictionary based on the field type
+        fields = {}
 
         if field.lower() == "priority":
             # Map common priority values
@@ -419,7 +407,7 @@ async def update_issue_action(
                 "critical": "Critical",
                 "urgent": "Highest",
                 "highest": "Highest",
-                "lowest": "Lowest",
+                "lowest": "Lowest"
             }
             priority = priority_map.get(value.lower(), value)
             fields["priority"] = {"name": priority}
@@ -458,32 +446,20 @@ async def update_issue_action(
             elif due_date_str in ["tomorrow"]:
                 due_date = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
             elif due_date_str in [
-                "monday",
-                "tuesday",
-                "wednesday",
-                "thursday",
-                "friday",
-                "saturday",
-                "sunday",
+                "monday", "tuesday", "wednesday", "thursday",
+                "friday", "saturday", "sunday",
             ]:
                 # Calculate next occurrence of the specified day
                 days_of_week = {
-                    "monday": 0,
-                    "tuesday": 1,
-                    "wednesday": 2,
-                    "thursday": 3,
-                    "friday": 4,
-                    "saturday": 5,
-                    "sunday": 6,
+                    "monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3,
+                    "friday": 4, "saturday": 5, "sunday": 6,
                 }
                 target_day = days_of_week[due_date_str]
                 current_day = datetime.now().weekday()
                 days_ahead = target_day - current_day
                 if days_ahead <= 0:  # Target day already happened this week
                     days_ahead += 7
-                due_date = (datetime.now() + timedelta(days=days_ahead)).strftime(
-                    "%Y-%m-%d"
-                )
+                due_date = (datetime.now() + timedelta(days=days_ahead)).strftime("%Y-%m-%d")
             elif due_date_str == "next week":
                 due_date = (datetime.now() + timedelta(weeks=1)).strftime("%Y-%m-%d")
             elif due_date_str == "next month":
@@ -507,16 +483,11 @@ async def update_issue_action(
         # Update the issue using the multi-user service
         jira_service_instance = jira_service.get_jira_service(user_id)
         if not jira_service_instance:
-            return {
-                "success": False,
-                "message": "User not authenticated",
-            }  # Add comprehensive logging for debugging
+            return {"success": False, "message": "User not authenticated"}        # Add comprehensive logging for debugging
         logger.info(f"Updating issue {issue_key} with field '{field}' = '{value}'")
         logger.info(f"Fields dict being sent to Jira: {fields}")
         logger.info(f"JiraService instance type: {type(jira_service_instance)}")
-        logger.info(
-            f"JiraService client type: {type(jira_service_instance._client) if hasattr(jira_service_instance, '_client') else 'No _client attribute'}"
-        )
+        logger.info(f"JiraService client type: {type(jira_service_instance._client) if hasattr(jira_service_instance, '_client') else 'No _client attribute'}")
 
         try:
             result = jira_service_instance.update_issue(issue_key, fields)
@@ -526,27 +497,26 @@ async def update_issue_action(
             logger.error(f"Error type: {type(update_error)}")
 
             # Check if it's an Atlassian API error with more details
-            if hasattr(update_error, "response"):
-                logger.error(
-                    f"HTTP Response Status: {getattr(update_error.response, 'status_code', 'Unknown')}"
-                )
-                logger.error(
-                    f"HTTP Response Text: {getattr(update_error.response, 'text', 'No response text')}"
-                )
+            if hasattr(update_error, 'response'):
+                logger.error(f"HTTP Response Status: {getattr(update_error.response, 'status_code', 'Unknown')}")
+                logger.error(f"HTTP Response Text: {getattr(update_error.response, 'text', 'No response text')}")
 
             # Check if it has other attributes
-            for attr in ["message", "args", "status_code"]:
+            for attr in ['message', 'args', 'status_code']:
                 if hasattr(update_error, attr):
                     logger.error(f"Error {attr}: {getattr(update_error, attr)}")
 
             # Re-raise the error to be caught by the outer exception handler
-            raise update_error  # The update_issue_field method returns None even on success
-        # If we reach this point without an exception, the update was successful
-        return {
-            "success": True,
-            "message": f"Updated {field} for {issue_key} to '{value}'",
-            "issue_key": issue_key,
-        }
+            raise update_error
+
+        if result:
+            return {
+                "success": True,
+                "message": f"Updated {field} for {issue_key} to '{value}'",
+                "issue_key": issue_key,
+            }
+        else:
+            return {"success": False, "message": f"Failed to update {issue_key}"}
 
     except Exception as e:
         logger.error(f"Error updating issue: {str(e)}")

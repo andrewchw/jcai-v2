@@ -137,7 +137,7 @@ class ConversationContext:
 INTENT_REQUIREMENTS = {
     JiraIntent.CREATE_ISSUE: ["summary"],
     JiraIntent.ASSIGN_ISSUE: ["issue_key", "assignee"],
-    JiraIntent.UPDATE_ISSUE: ["issue_key", "field", "value"],
+    JiraIntent.UPDATE_ISSUE: ["issue_key"],
     JiraIntent.TRANSITION_ISSUE: ["issue_key", "status"],
     JiraIntent.ADD_COMMENT: ["issue_key", "comment"],
 }
@@ -151,10 +151,24 @@ ENTITY_PATTERNS = {
     "due_date": r"due\s*date\s*[:=]\s*[\"\'](.*?)[\"\']\s*|due\s*date\s*[:=]\s*([^,\n]+?)(?:\s*,|\s*$|\s*for|\s*and)|(\d{4}-\d{2}-\d{2}|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|next week|next month)",
     "priority": r"priority\s*[:=]\s*[\"\'](.*?)[\"\']\s*|priority\s*[:=]\s*([^,\n]+?)(?:\s*,|\s*$|\s*for|\s*and)|(low|medium|high|critical|urgent|blocker)",
     "status": r"(todo|to do|in progress|done|completed|closed|open|resolved)",
+    "comment": r"comment\s*:\s*['\"]([^'\"]+)['\"]|comment\s*:\s*([^,\n]+?)(?:\s*,|\s*$)|comment\s+on\s+[A-Z]+-\d+\s+['\"]([^'\"]+)['\"]|add\s+comment\s+to\s+[A-Z]+-\d+\s+['\"]([^'\"]+)['\"]|comment\s+[A-Z]+-\d+\s+['\"]([^'\"]+)['\"]",
 }
 
 INTENT_PATTERNS = {
-    JiraIntent.CREATE_ISSUE: ["create", "add", "new", "make", "build"],
+    JiraIntent.ADD_COMMENT: [
+        "add comment",
+        "comment",
+        "note",
+        "add note",
+        "mention",
+    ],  # More specific patterns first
+    JiraIntent.CREATE_ISSUE: [
+        "create",
+        "add new",
+        "new",
+        "make",
+        "build",
+    ],  # More specific for create
     JiraIntent.QUERY_ISSUES: ["show", "list", "find", "search", "get", "what", "which"],
     JiraIntent.UPDATE_ISSUE: ["update", "change", "modify", "edit", "set"],
     JiraIntent.ASSIGN_ISSUE: ["assign", "give to", "allocate", "delegate"],
@@ -167,7 +181,6 @@ INTENT_PATTERNS = {
         "in progress",
         "move to",
     ],
-    JiraIntent.ADD_COMMENT: ["comment", "note", "add note", "mention"],
     JiraIntent.SMALL_TALK: ["hello", "hi", "thanks", "thank you", "how are you"],
     JiraIntent.HELP: ["help", "what can you do", "commands", "usage"],
 }
@@ -241,15 +254,26 @@ class DialogflowInspiredLLMService:
         if context.is_pagination_request(message) and context.has_more_search_results():
             return JiraIntent.QUERY_ISSUES
 
-        # Quick pattern-based classification first
+        # Quick pattern-based classification with priority for longer/more specific matches
+        best_match = None
+        best_match_length = 0
+
         for intent, patterns in INTENT_PATTERNS.items():
-            if any(pattern in message_lower for pattern in patterns):
-                return intent
+            for pattern in patterns:
+                if pattern in message_lower:
+                    # Prioritize longer, more specific patterns
+                    if len(pattern) > best_match_length:
+                        best_match = intent
+                        best_match_length = len(pattern)
+
+        if best_match:
+            return best_match
 
         # If context suggests continuation of previous intent
         if context.current_intent and context.missing_entities:
             return context.current_intent
-            # Fall back to LLM classification for complex cases
+
+        # Fall back to LLM classification for complex cases
         return self._llm_classify_intent(message, context)
 
     def _extract_entities(
@@ -274,7 +298,13 @@ class DialogflowInspiredLLMService:
                         if match and re.match(r"^[A-Z]{2,10}$", match):
                             entities[entity_type] = JiraEntity(entity_type, match)
                             break
-                elif entity_type in ["assignee", "summary", "due_date", "priority"]:
+                elif entity_type in [
+                    "assignee",
+                    "summary",
+                    "due_date",
+                    "priority",
+                    "comment",
+                ]:
                     # Handle patterns with optional quoted/unquoted formats
                     if isinstance(matches[0], tuple):
                         # Find the first non-empty group
@@ -341,6 +371,7 @@ class DialogflowInspiredLLMService:
             JiraIntent.ASSIGN_ISSUE: "I'll assign {issue_key} to {assignee}.",
             JiraIntent.TRANSITION_ISSUE: "I'll move {issue_key} to {status}.",
             JiraIntent.QUERY_ISSUES: "Let me search for issues matching your criteria...",
+            JiraIntent.ADD_COMMENT: "I'll add a comment to {issue_key}: '{comment}'",
             JiraIntent.SMALL_TALK: "Hello! I'm here to help you manage your Jira tasks. What would you like to do?",
             JiraIntent.HELP: "I can help you create issues, assign tasks, update status, search for issues, and add comments. What would you like to do?",
         }
@@ -379,6 +410,7 @@ class DialogflowInspiredLLMService:
 
         action_map = {
             JiraIntent.CREATE_ISSUE: "create_issue",
+            JiraIntent.UPDATE_ISSUE: "update_issue",
             JiraIntent.ASSIGN_ISSUE: "assign_issue",
             JiraIntent.TRANSITION_ISSUE: "transition_issue",
             JiraIntent.QUERY_ISSUES: "search_issues",
