@@ -40,7 +40,7 @@ class UserService:
         Get an existing user or create a new one.
 
         Args:
-            user_data: Dictionary with user data (email, jira_account_id, etc.)
+            user_data: Dictionary with user data (email, jira_account_id, id, etc.)
 
         Returns:
             User object
@@ -48,7 +48,11 @@ class UserService:
         # Try to find existing user by identifiers
         user = None
 
-        if email := user_data.get("email"):
+        # First try to find by ID if provided
+        if user_id := user_data.get("id"):
+            user = self.get_by_id(user_id)
+
+        if not user and (email := user_data.get("email")):
             user = self.get_by_email(email)
 
         if not user and (jira_id := user_data.get("jira_account_id")):

@@ -1,13 +1,6 @@
-"""
-Multi-user OAuth endpoints for Jira Chatbot API.
+"""Multi-user OAuth endpoints for Jira Chatbot API.
 
-These endpoints provid            # Get scope from settings if available
-            scope = getattr(settings, "ATLASSIAN_OAUTH_SCOPE", "read:jira-work write:jira-work offline_access")
-
-            # Create a real OAuth authorization URL
-            auth_url = f"https://auth.atlassian.com/authorize?audience=api.atlassian.com&client_id={client_id}&scope={urllib.parse.quote(scope)}&redirect_uri={urllib.parse.quote(redirect_uri)}&state={state}&response_type=code&prompt=consent"
-            callback_url = auth_url
-            logger.info(f"Generated OAuth URL for user {user_id}: {auth_url}")uth authentication for multiple users.
+These endpoints provide OAuth authentication for multiple users.
 """
 
 import logging
@@ -16,15 +9,15 @@ import traceback
 import urllib.parse
 import uuid
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Optional
 
+import requests
+from app.core.config import settings
 from app.core.database import get_db
-from app.schemas.api_schemas import (OAuthRequest, OAuthResponse,
-                                     TokenResponse, UserCreate, UserResponse)
+from app.schemas.api_schemas import OAuthRequest, OAuthResponse, TokenResponse
 from app.services.multi_user_jira_service import MultiUserJiraService
-from fastapi import (APIRouter, BackgroundTasks, Depends, HTTPException, Query,
-                     Request)
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 # Configure logging
@@ -143,15 +136,8 @@ async def callback(
         code: The authorization code (for real OAuth)
         state: The state passed to the authorization server
         setup_example: Whether to set up a test token
-        success: Whether the authorization was successful
+    success: Whether the authorization was successful
     """
-    import time
-    from datetime import datetime, timedelta
-
-    import requests
-    from app.core.config import settings
-    from fastapi.responses import HTMLResponse, RedirectResponse
-
     # Extract user_id from state if present
     if state and state.startswith("user_id:"):
         extracted_user_id = state.split("user_id:")[1]
@@ -209,14 +195,29 @@ async def callback(
                     logger.info(f"Exchanging code for token for user {user_id}")
                     token_response = requests.post(token_url, json=token_data)
 
-                    if token_response.status_code == 200:
-                        # Process token response
+                    if token_response.status_code == 200:  # Process token response
                         token = token_response.json()
 
                         # Add expires_at field (access_token typically expires in 1 hour)
                         expires_in = token.get("expires_in", 3600)  # Default to 1 hour
                         token["expires_at"] = datetime.now().timestamp() + expires_in
                         token["created_at"] = datetime.now().timestamp()
+
+                        # Ensure user record exists before saving token
+                        try:
+                            # Create or update user record with the specific user_id
+                            user_data = {
+                                "id": user_id,  # Use the exact user_id as the primary key
+                                "display_name": f"User {user_id[:8]}",  # Use partial user_id as display name
+                                "is_active": True,
+                            }
+                            service.get_or_create_user(user_data)
+                            logger.info(f"Ensured user record exists for {user_id}")
+                        except Exception as user_creation_error:
+                            logger.warning(
+                                f"Failed to create user record for {user_id}: {str(user_creation_error)}"
+                            )
+                            # Continue anyway - token saving might still work
 
                         # Save the token
                         if service.save_token_for_user(user_id, token):
@@ -273,6 +274,22 @@ async def callback(
                     "expires_in": 3600,  # 1 hour
                     "created_at": datetime.now().timestamp(),
                 }
+
+                # Ensure user record exists before saving token
+                try:
+                    # Create or update user record with the specific user_id
+                    user_data = {
+                        "id": user_id,  # Use the exact user_id as the primary key
+                        "display_name": f"User {user_id[:8]}",  # Use partial user_id as display name
+                        "is_active": True,
+                    }
+                    service.get_or_create_user(user_data)
+                    logger.info(f"Ensured user record exists for {user_id}")
+                except Exception as user_creation_error:
+                    logger.warning(
+                        f"Failed to create user record for {user_id}: {str(user_creation_error)}"
+                    )
+                    # Continue anyway - token saving might still work
 
                 # Save the token for this user
                 if service.save_token_for_user(user_id, token):
@@ -453,7 +470,7 @@ async def callback(
 
 @router.get("/token/status", response_model=TokenResponse)
 async def get_token_status(user_id: str, db: Session = Depends(get_db)):
-    """Get the current OAuth token status for a user"""
+    """Get the current OAuth token status for a user."""
     try:
         service = MultiUserJiraService(db)
         token = service.get_token_for_user(user_id)
@@ -495,7 +512,7 @@ async def get_token_status(user_id: str, db: Session = Depends(get_db)):
 
 @router.get("/logout")
 async def logout(user_id: str, db: Session = Depends(get_db)):
-    """Logout and invalidate OAuth token for a user"""
+    """Logout and invalidate OAuth token for a user."""
     try:
         service = MultiUserJiraService(db)
         success = service.logout_user(user_id)
@@ -512,6 +529,137 @@ async def logout(user_id: str, db: Session = Depends(get_db)):
 
 @router.post("/logout")
 async def logout_post(user_id: str, db: Session = Depends(get_db)):
-    """Logout and invalidate OAuth token for a user via POST request"""
+    """Logout and invalidate OAuth token for a user via POST request."""
     # This simply calls the same implementation as the GET endpoint
     return await logout(user_id=user_id, db=db)
+
+
+@router.post("/remember-me/enable")
+async def enable_remember_me(
+    user_id: str, extended_duration_days: int = 7, db: Session = Depends(get_db)
+):
+    """Enable 'Remember Me' feature for a user with extended session duration."""
+    try:
+        service = MultiUserJiraService(db)
+
+        # Get the user from database
+        user = service.get_user_by_id(user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Update user preferences
+        user.remember_me_enabled = True
+        user.extended_session_duration_days = extended_duration_days
+        user.last_remember_me_login = datetime.now()
+
+        # Get current token and enable extended session
+        token_record = service.get_token_record_for_user(user_id)
+        if token_record:
+            token_record.enable_extended_session(extended_duration_days)
+            db.commit()
+
+            logger.info(
+                f"Enabled 'Remember Me' for user {user_id} with {extended_duration_days} days extension"
+            )
+
+            return {
+                "success": True,
+                "message": f"Remember Me enabled for {extended_duration_days} days",
+                "extended_expires_at": token_record.extended_expires_at,
+                "original_expires_at": token_record.original_expires_at,
+            }
+        else:
+            # Just update user preferences even if no active token
+            db.commit()
+            return {
+                "success": True,
+                "message": "Remember Me preferences saved (will apply to next login)",
+                "extended_duration_days": extended_duration_days,
+            }
+
+    except Exception as e:
+        logger.error(f"Error enabling Remember Me: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to enable Remember Me: {str(e)}"
+        )
+
+
+@router.post("/remember-me/disable")
+async def disable_remember_me(user_id: str, db: Session = Depends(get_db)):
+    """Disable 'Remember Me' feature for a user."""
+    try:
+        service = MultiUserJiraService(db)
+
+        # Get the user from database
+        user = service.get_user_by_id(user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Update user preferences
+        user.remember_me_enabled = False
+        user.last_remember_me_login = None
+
+        # Get current token and disable extended session
+        token_record = service.get_token_record_for_user(user_id)
+        if token_record:
+            token_record.disable_extended_session()
+            db.commit()
+
+            logger.info(f"Disabled 'Remember Me' for user {user_id}")
+
+            return {
+                "success": True,
+                "message": "Remember Me disabled",
+                "expires_at": token_record.expires_at,
+            }
+        else:
+            # Just update user preferences
+            db.commit()
+            return {"success": True, "message": "Remember Me preferences updated"}
+
+    except Exception as e:
+        logger.error(f"Error disabling Remember Me: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to disable Remember Me: {str(e)}"
+        )
+
+
+@router.get("/remember-me/status")
+async def get_remember_me_status(user_id: str, db: Session = Depends(get_db)):
+    """Get current 'Remember Me' status for a user."""
+    try:
+        service = MultiUserJiraService(db)
+
+        # Get the user from database
+        user = service.get_user_by_id(user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Get current token status
+        token_record = service.get_token_record_for_user(user_id)
+        token_status = None
+        if token_record:
+            token_status = {
+                "is_extended_session": token_record.is_extended_session,
+                "extended_expires_at": token_record.extended_expires_at,
+                "original_expires_at": token_record.original_expires_at,
+                "effective_expires_at": token_record.effective_expires_at,
+                "is_expired": token_record.is_expired,
+            }
+
+        return {
+            "remember_me_enabled": user.remember_me_enabled,
+            "extended_session_duration_days": user.extended_session_duration_days,
+            "last_remember_me_login": (
+                user.last_remember_me_login.isoformat()
+                if user.last_remember_me_login
+                else None
+            ),
+            "token_status": token_status,
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting Remember Me status: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get Remember Me status: {str(e)}"
+        )

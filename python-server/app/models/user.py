@@ -7,7 +7,7 @@ This module defines the User model for tracking user data and authentication.
 import uuid
 
 from app.core.database import Base
-from sqlalchemy import Boolean, Column, DateTime, String
+from sqlalchemy import Boolean, Column, DateTime, Integer, String
 from sqlalchemy.sql import func
 
 
@@ -35,6 +35,13 @@ class User(Base):
 
     # Status flags
     is_active = Column(Boolean, default=True)
+
+    # "Remember Me" feature preferences
+    remember_me_enabled = Column(Boolean, default=False)
+    extended_session_duration_days = Column(
+        Integer, default=7
+    )  # Default 7 days for "Remember Me"
+    last_remember_me_login = Column(DateTime(timezone=True), nullable=True)
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())

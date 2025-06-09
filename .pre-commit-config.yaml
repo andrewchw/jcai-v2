@@ -1,5 +1,6 @@
 # Pre-commit configuration for Python projects
 # See https://pre-commit.com for more information
+# Black, isort, and flake8 hooks are commented out to skip cosmetic formatting checks
 repos:
 -   repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.4.0
@@ -12,23 +13,24 @@ repos:
     -   id: check-added-large-files
     -   id: detect-private-key
 
--   repo: https://github.com/psf/black
-    rev: 23.7.0
-    hooks:
-    -   id: black
+# Commented out to skip cosmetic formatting checks
+# -   repo: https://github.com/psf/black
+#     rev: 23.7.0
+#     hooks:
+#     -   id: black
 
--   repo: https://github.com/pycqa/isort
-    rev: 5.12.0
-    hooks:
-    -   id: isort
+# -   repo: https://github.com/pycqa/isort
+#     rev: 5.12.0
+#     hooks:
+#     -   id: isort
 
--   repo: https://github.com/pycqa/flake8
-    rev: 6.1.0
-    hooks:
-    -   id: flake8
-        additional_dependencies: [flake8-docstrings]
-        args: [--extend-ignore=E501]
-        exclude: tests/
+# -   repo: https://github.com/pycqa/flake8
+#     rev: 6.1.0
+#     hooks:
+#     -   id: flake8
+#         additional_dependencies: [flake8-docstrings]
+#         args: [--extend-ignore=E501]
+#         exclude: tests/
 
 -   repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.5.1

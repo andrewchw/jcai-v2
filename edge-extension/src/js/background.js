@@ -8,6 +8,8 @@ const API_BASE_URL = 'http://localhost:8000/api';
 const TOKEN_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes (default)
 const FAST_TOKEN_CHECK_INTERVAL = 30 * 1000; // 30 seconds (right after auth)
 const FAST_CHECK_DURATION = 5 * 60 * 1000; // Use fast checking for 5 minutes after auth
+const EXTENDED_SESSION_CHECK_INTERVAL = 15 * 60 * 1000; // 15 minutes for extended sessions
+const TOKEN_REFRESH_THRESHOLD = 10 * 60 * 1000; // 10 minutes before expiry
 const DEBUG_MODE = true; // Enable for more verbose logging
 
 // Generate a unique user ID for this browser instance
@@ -20,7 +22,10 @@ let tokenState = {
     lastChecked: null,
     userId: USER_ID,
     userInfo: null, // Added to store user information
-    lastAuthTime: null // Track when authentication was completed for smart intervals
+    lastAuthTime: null, // Track when authentication was completed for smart intervals
+    extendedSessionEnabled: false, // Remember Me preference
+    extendedSessionExpiry: null, // Extended session expiry time
+    lastRefreshAttempt: null // Track last token refresh attempt
 };
 
 // Initialize the extension
@@ -248,9 +253,7 @@ function handleSidebarConnection(port) {
                             }
                         });
                     }
-                    break;
-
-                case 'update-user-id':
+                    break; case 'update-user-id':
                     if (message.payload && message.payload.userId) {
                         // Update user ID if it's different
                         if (message.payload.userId !== tokenState.userId) {
@@ -268,6 +271,14 @@ function handleSidebarConnection(port) {
                             console.log('User ID from sidebar matches current user ID');
                         }
                     }
+                    break;
+
+                case 'set-remember-me':
+                    await handleRememberMeToggle(message.payload, port);
+                    break;
+
+                case 'get-remember-me-status':
+                    await handleGetRememberMeStatus(port);
                     break;
             }
         } catch (error) {
@@ -525,6 +536,240 @@ function initiateLogin() {
             });
         });
     });
+}
+
+/**
+ * Handle Remember Me toggle from sidebar
+ */
+async function handleRememberMeToggle(payload, port) {
+    console.log('Handling Remember Me toggle:', payload);
+
+    try {
+        if (!tokenState.userId) {
+            throw new Error('User ID not available');
+        }
+
+        const { enabled, duration } = payload;
+
+        // Call the backend API to enable/disable extended session
+        const endpoint = enabled ? 'enable' : 'disable';
+        const url = `${API_BASE_URL}/auth/oauth/v2/remember-me/${endpoint}?user_id=${encodeURIComponent(tokenState.userId)}`;
+
+        const requestBody = enabled ? { duration_hours: duration || 168 } : {}; // Default 7 days
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Client-ID': tokenState.userId
+            },
+            body: JSON.stringify(requestBody)
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(`Failed to ${endpoint} extended session: ${response.status} - ${errorData.detail || response.statusText}`);
+        }
+
+        const result = await response.json();
+        console.log('Remember Me API response:', result);
+
+        // Update local state
+        tokenState.extendedSessionEnabled = enabled;
+        if (enabled && result.extended_session_expiry) {
+            tokenState.extendedSessionExpiry = result.extended_session_expiry;
+        } else {
+            tokenState.extendedSessionExpiry = null;
+        }
+
+        await chrome.storage.local.set({ tokenState });
+
+        // Adjust token checking interval based on extended session
+        if (enabled) {
+            restartTokenCheckingWithExtendedInterval();
+        } else {
+            restartTokenCheckingWithNormalInterval();
+        }
+
+        // Notify sidebar of success
+        port.postMessage({
+            type: 'remember-me-status',
+            payload: {
+                enabled: tokenState.extendedSessionEnabled,
+                expiry: tokenState.extendedSessionExpiry,
+                success: true,
+                message: enabled ? 'Extended session enabled' : 'Extended session disabled'
+            }
+        });
+
+    } catch (error) {
+        console.error('Error handling Remember Me toggle:', error);
+
+        // Notify sidebar of error
+        port.postMessage({
+            type: 'remember-me-status',
+            payload: {
+                enabled: tokenState.extendedSessionEnabled,
+                expiry: tokenState.extendedSessionExpiry,
+                success: false,
+                error: error.message
+            }
+        });
+    }
+}
+
+/**
+ * Handle get Remember Me status request from sidebar
+ */
+async function handleGetRememberMeStatus(port) {
+    console.log('Getting Remember Me status for user:', tokenState.userId);
+
+    try {
+        if (!tokenState.userId) {
+            throw new Error('User ID not available');
+        }
+
+        // Check backend for current extended session status
+        const response = await fetch(`${API_BASE_URL}/auth/oauth/v2/remember-me/status?user_id=${encodeURIComponent(tokenState.userId)}`, {
+            headers: {
+                'Accept': 'application/json',
+                'X-Client-ID': tokenState.userId
+            }
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(`Failed to get extended session status: ${response.status} - ${errorData.detail || response.statusText}`);
+        } const result = await response.json();
+        console.log('Remember Me status response:', result);
+
+        // Update local state with server response
+        tokenState.extendedSessionEnabled = result.remember_me_enabled || false;
+        tokenState.extendedSessionExpiry = result.token_status?.effective_expires_at || null;
+
+        await chrome.storage.local.set({ tokenState });
+
+        // Send status to sidebar
+        port.postMessage({
+            type: 'remember-me-status',
+            payload: {
+                enabled: tokenState.extendedSessionEnabled,
+                expiry: tokenState.extendedSessionExpiry,
+                success: true
+            }
+        });
+
+    } catch (error) {
+        console.error('Error getting Remember Me status:', error);
+
+        // Send error to sidebar
+        port.postMessage({
+            type: 'remember-me-status',
+            payload: {
+                enabled: false,
+                expiry: null,
+                success: false,
+                error: error.message
+            }
+        });
+    }
+}
+
+/**
+ * Restart token checking with extended session interval
+ */
+function restartTokenCheckingWithExtendedInterval() {
+    console.log('Restarting token checking with extended session interval');
+    stopTokenChecking();
+
+    // Use longer intervals for extended sessions to reduce server load
+    const interval = tokenState.extendedSessionEnabled ? EXTENDED_SESSION_CHECK_INTERVAL : TOKEN_CHECK_INTERVAL;
+
+    if (self.tokenCheckIntervalId) {
+        clearInterval(self.tokenCheckIntervalId);
+    }
+
+    self.tokenCheckIntervalId = setInterval(async () => {
+        await checkOAuthToken({ fromPeriodicCheck: true });
+    }, interval);
+
+    console.log(`Token checking restarted with ${interval / 1000 / 60} minute interval`);
+}
+
+/**
+ * Restart token checking with normal interval
+ */
+function restartTokenCheckingWithNormalInterval() {
+    console.log('Restarting token checking with normal interval');
+    stopTokenChecking();
+    startTokenChecking();
+}
+
+/**
+ * Check if token needs refresh based on expiry time and extended session settings
+ */
+function shouldRefreshToken(tokenData) {
+    if (!tokenData || !tokenData.expires_at) {
+        return false;
+    }
+
+    const expiryTime = new Date(tokenData.expires_at).getTime();
+    const currentTime = Date.now();
+    const timeUntilExpiry = expiryTime - currentTime;
+
+    // For extended sessions, try to refresh earlier to ensure continuity
+    const refreshThreshold = tokenState.extendedSessionEnabled ?
+        TOKEN_REFRESH_THRESHOLD * 2 : // 20 minutes for extended sessions
+        TOKEN_REFRESH_THRESHOLD;      // 10 minutes for normal sessions
+
+    return timeUntilExpiry <= refreshThreshold && timeUntilExpiry > 0;
+}
+
+/**
+ * Attempt to refresh the token
+ */
+async function attemptTokenRefresh() {
+    console.log('Attempting token refresh for user:', tokenState.userId);
+
+    try {
+        // Prevent rapid refresh attempts
+        const now = Date.now();
+        if (tokenState.lastRefreshAttempt && (now - tokenState.lastRefreshAttempt) < 60000) {
+            console.log('Skipping token refresh - too soon since last attempt');
+            return false;
+        }
+
+        tokenState.lastRefreshAttempt = now;
+
+        const response = await fetch(`${API_BASE_URL}/auth/oauth/v2/refresh?user_id=${encodeURIComponent(tokenState.userId)}`, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'X-Client-ID': tokenState.userId
+            }
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            console.error('Token refresh failed:', response.status, errorData);
+            return false;
+        }
+
+        const result = await response.json();
+        console.log('Token refresh successful:', result.success ? 'Yes' : 'No');
+
+        if (result.success) {
+            // Immediately check token status to get updated token data
+            await checkOAuthToken({ forceCheck: true });
+            return true;
+        }
+
+        return false;
+
+    } catch (error) {
+        console.error('Error during token refresh:', error);
+        return false;
+    }
 }
 
 /**
@@ -895,6 +1140,19 @@ async function checkOAuthToken(options = {}) {
         } const data = await response.json();
         console.log('Token status (detailed from /token/status):', JSON.stringify(data, null, 2));
 
+        // Check if token needs refresh before processing response
+        if (shouldRefreshToken(data)) {
+            console.log('Token needs refresh, attempting refresh...');
+            const refreshSuccess = await attemptTokenRefresh();
+            if (refreshSuccess) {
+                console.log('Token refresh successful, re-checking status...');
+                // Recursively call to get fresh token data after refresh
+                return checkOAuthToken({ ...options, forceCheck: true, skipRefresh: true });
+            } else {
+                console.warn('Token refresh failed, proceeding with current token data');
+            }
+        }
+
         // Explicit check for true/false to avoid truthy values
         const isActive = data && (
             data.status === "active" ||
@@ -1011,14 +1269,24 @@ function startTokenChecking() {
         }
     }    // Set new interval with smart timing based on recent authentication
     try {
-        // Determine the interval based on how recently authentication occurred
+        // Determine the interval based on how recently authentication occurred and extended session
         const now = Date.now();
         const timeSinceAuth = tokenState.lastAuthTime ? (now - tokenState.lastAuthTime) : Infinity;
         const shouldUseFastInterval = timeSinceAuth < FAST_CHECK_DURATION;
-        const intervalToUse = shouldUseFastInterval ? FAST_TOKEN_CHECK_INTERVAL : TOKEN_CHECK_INTERVAL;
+
+        let intervalToUse;
+        if (shouldUseFastInterval) {
+            intervalToUse = FAST_TOKEN_CHECK_INTERVAL;
+        } else if (tokenState.extendedSessionEnabled) {
+            intervalToUse = EXTENDED_SESSION_CHECK_INTERVAL;
+        } else {
+            intervalToUse = TOKEN_CHECK_INTERVAL;
+        }
 
         if (DEBUG_MODE) {
-            console.log(`Using ${shouldUseFastInterval ? 'fast' : 'normal'} token check interval: ${intervalToUse / 1000}s (auth was ${Math.round(timeSinceAuth / 1000)}s ago)`);
+            const intervalType = shouldUseFastInterval ? 'fast' :
+                tokenState.extendedSessionEnabled ? 'extended' : 'normal';
+            console.log(`Using ${intervalType} token check interval: ${intervalToUse / 1000}s (auth was ${Math.round(timeSinceAuth / 1000)}s ago, extended: ${tokenState.extendedSessionEnabled})`);
         }
 
         self.tokenCheckIntervalId = setInterval(async () => {

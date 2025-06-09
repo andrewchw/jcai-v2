@@ -148,6 +148,30 @@ class MultiUserJiraService:
         user = self.user_service.get_or_create_user(user_data)
         return str(user.id)
 
+    def get_user_by_id(self, user_id: str):
+        """
+        Get user by ID.
+
+        Args:
+            user_id: The user ID
+
+        Returns:
+            User model instance or None if not found
+        """
+        return self.user_service.get_by_id(user_id)
+
+    def get_token_record_for_user(self, user_id: str):
+        """
+        Get the OAuthToken record for a user.
+
+        Args:
+            user_id: The user ID
+
+        Returns:
+            OAuthToken model instance or None if not found
+        """
+        return self.token_service.get_token(user_id, "jira")
+
     # Jira Action Methods for Chat Integration
 
     async def create_issue(

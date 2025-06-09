@@ -527,3 +527,92 @@ select {
 ::-webkit-scrollbar-thumb:hover {
     background: #6B778C;
 }
+
+/* Remember Me Section Styles */
+.remember-me-section {
+    margin-top: 16px;
+    padding: 12px;
+    background-color: #F8F9FA;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+}
+
+.remember-me-section h3 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--text-color);
+}
+
+.remember-me-options {
+    margin-top: 12px;
+    padding-left: 20px;
+}
+
+.remember-me-status {
+    margin-top: 8px;
+    padding: 8px;
+    border-radius: var(--border-radius);
+    font-size: 12px;
+    min-height: 20px;
+}
+
+.remember-me-status:empty {
+    display: none;
+}
+
+/* Enhanced Setting Item Styles for Remember Me */
+.setting-item.checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.setting-item.checkbox input[type="checkbox"] {
+    margin: 0;
+    width: 16px;
+    height: 16px;
+    accent-color: var(--primary-color);
+}
+
+.setting-item.checkbox label {
+    font-size: 13px;
+    color: var(--text-color);
+    cursor: pointer;
+    user-select: none;
+}
+
+/* Session Duration Select Styling */
+#session-duration {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background-color: white;
+    font-size: 12px;
+    color: var(--text-color);
+    cursor: pointer;
+}
+
+#session-duration:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(0, 82, 204, 0.2);
+}
+
+/* Success/Error Message Styles */
+.remember-me-status span[style*="success-color"] {
+    color: var(--success-color) !important;
+}
+
+.remember-me-status span[style*="error-color"] {
+    color: var(--error-color) !important;
+}
+
+.remember-me-status small {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    opacity: 0.8;
+}

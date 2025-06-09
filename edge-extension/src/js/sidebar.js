@@ -19,15 +19,20 @@ const elements = {
     tasksList: document.getElementById('tasks-list'),
     tasksCountText: document.getElementById('tasks-count-text'),
     refreshTasksButton: document.getElementById('refresh-tasks'),
-    createTaskButton: document.getElementById('create-task'),
-
-    // Settings
+    createTaskButton: document.getElementById('create-task'),    // Settings
     serverUrl: document.getElementById('server-url'),
     oauthStatus: document.getElementById('oauth-status'),
     loginButton: document.getElementById('login-button'),
     logoutButton: document.getElementById('logout-button'),
     enableNotifications: document.getElementById('enable-notifications'),
     notificationTime: document.getElementById('notification-time'),
+
+    // Remember Me elements
+    rememberMeSection: document.getElementById('remember-me-section'),
+    rememberMeToggle: document.getElementById('remember-me-toggle'),
+    rememberMeOptions: document.getElementById('remember-me-options'),
+    sessionDuration: document.getElementById('session-duration'),
+    rememberMeStatus: document.getElementById('remember-me-status'),
 
     // Status indicators
     statusIndicator: document.getElementById('status-indicator'),
@@ -44,13 +49,14 @@ const state = {
     serverUrl: 'http://localhost:8000',
     isAuthenticated: false,
     serverConnected: false,
-    userId: null, // Add user ID to state for API requests
-    projects: [],
+    userId: null, // Add user ID to state for API requests    projects: [],
     tasks: [],
     lastTokenCheck: 0, // Track last token check time to prevent rapid requests
     lastProjectsCheck: 0, // Track last projects check time
     lastTasksCheck: 0, // Track last tasks check time
-    lastAuthTime: 0 // Track when authentication last completed for smart debouncing
+    lastAuthTime: 0, // Track when authentication last completed for smart debouncing
+    rememberMeEnabled: false, // Track Remember Me status
+    rememberMeExpiry: null // Track extended session expiry
 };
 
 /**
@@ -205,10 +211,12 @@ function setupPortListeners() {
 
                 case 'jira-tasks':
                     handleTasksUpdate(message.payload);
+                    break; case 'user-id-update':
+                    handleUserIdUpdate(message.payload);
                     break;
 
-                case 'user-id-update':
-                    handleUserIdUpdate(message.payload);
+                case 'remember-me-status':
+                    handleRememberMeStatusUpdate(message.payload);
                     break;
 
                 case 'error': // Add a specific case for 'error' type messages
@@ -286,11 +294,13 @@ function setupEventListeners() {
         const jiraDomain = 'https://3hk.atlassian.net';
         const createUrl = `${jiraDomain}/secure/CreateIssue.jspa?pid=10000&issuetype=10001`;
         window.open(createUrl, '_blank');
-    });
-
-    // Login/Logout
+    });    // Login/Logout
     elements.loginButton.addEventListener('click', initiateLogin);
     elements.logoutButton.addEventListener('click', initiateLogout);
+
+    // Remember Me functionality
+    elements.rememberMeToggle.addEventListener('change', handleRememberMeToggle);
+    elements.sessionDuration.addEventListener('change', handleSessionDurationChange);
 
     // Settings changes
     elements.serverUrl.addEventListener('change', saveSettings);
@@ -466,9 +476,7 @@ function handleAuthStatusUpdate(payload) {
             timestamp: timestamp,
             source: source
         }
-    });
-
-    // Update button visibility
+    });    // Update button visibility
     elements.loginButton.style.display = state.isAuthenticated ? 'none' : 'block';
     elements.logoutButton.style.display = state.isAuthenticated ? 'block' : 'none';
     elements.loginButton.disabled = state.isAuthenticated;
@@ -485,9 +493,17 @@ function handleAuthStatusUpdate(payload) {
             // Avoid clearing it unnecessarily unless explicitly logging out.
             // elements.userDisplay.textContent = elements.userDisplay.textContent || 'Authenticated'; // Keep existing or set generic
         }
+
+        // Request Remember Me status when authenticated
+        setTimeout(() => {
+            requestRememberMeStatus();
+        }, 500);
     } else {
         elements.userDisplay.textContent = ''; // Clear username on logout or auth failure
         elements.tokenStatus.textContent = 'N/A'; // Clear token status as well
+
+        // Hide Remember Me section when not authenticated
+        updateRememberMeUI({ enabled: false });
     }
 
     console.log('Auth UI updated - isAuthenticated:', state.isAuthenticated, 'Reason:', reason);
@@ -1226,4 +1242,154 @@ function handleUserIdUpdate(data) {
         savedUserId: data.userId,
         userIdTimestamp: Date.now()
     });
+}
+
+/**
+ * Handle Remember Me status update from background
+ */
+function handleRememberMeStatusUpdate(data) {
+    console.log('Remember Me status update received:', data);
+
+    if (!data) {
+        console.warn('Received invalid Remember Me status data:', data);
+        return;
+    }
+
+    // Update local state
+    state.rememberMeEnabled = data.enabled || false;
+    state.rememberMeExpiry = data.expiry || null;
+
+    // Update UI elements
+    updateRememberMeUI(data);
+}
+
+/**
+ * Update Remember Me UI elements
+ */
+function updateRememberMeUI(data) {
+    // Show/hide Remember Me section based on authentication status
+    if (state.isAuthenticated) {
+        elements.rememberMeSection.style.display = 'block';
+
+        // Update toggle state
+        elements.rememberMeToggle.checked = data.enabled || false;
+
+        // Show/hide options based on toggle state
+        elements.rememberMeOptions.style.display = data.enabled ? 'block' : 'none';
+
+        // Update status message
+        if (data.success !== undefined) {
+            if (data.success) {
+                elements.rememberMeStatus.innerHTML = `<span style="color: var(--success-color);">${data.message || 'Settings updated successfully'}</span>`;
+
+                // Show expiry information if available
+                if (data.enabled && data.expiry) {
+                    const expiryDate = new Date(data.expiry);
+                    const expiryText = expiryDate.toLocaleDateString() + ' ' + expiryDate.toLocaleTimeString();
+                    elements.rememberMeStatus.innerHTML += `<br><small>Extended session expires: ${expiryText}</small>`;
+                }
+            } else {
+                elements.rememberMeStatus.innerHTML = `<span style="color: var(--error-color);">Error: ${data.error || 'Failed to update settings'}</span>`;
+            }
+
+            // Clear status message after 5 seconds
+            setTimeout(() => {
+                elements.rememberMeStatus.innerHTML = '';
+            }, 5000);
+        } else if (data.enabled && data.expiry) {
+            // Show current expiry info for status queries
+            const expiryDate = new Date(data.expiry);
+            const expiryText = expiryDate.toLocaleDateString() + ' ' + expiryDate.toLocaleTimeString();
+            elements.rememberMeStatus.innerHTML = `<small style="color: var(--text-secondary);">Extended session expires: ${expiryText}</small>`;
+        }
+    } else {
+        elements.rememberMeSection.style.display = 'none';
+        elements.rememberMeStatus.innerHTML = '';
+    }
+}
+
+/**
+ * Handle Remember Me toggle change
+ */
+async function handleRememberMeToggle() {
+    console.log('Remember Me toggle changed:', elements.rememberMeToggle.checked);
+
+    if (!state.isAuthenticated) {
+        console.warn('Cannot toggle Remember Me - not authenticated');
+        elements.rememberMeToggle.checked = false;
+        return;
+    }
+
+    const enabled = elements.rememberMeToggle.checked;
+    const duration = enabled ? parseInt(elements.sessionDuration.value) : null;
+
+    // Show loading state
+    elements.rememberMeStatus.innerHTML = '<span style="color: var(--text-secondary);">Updating settings...</span>';
+
+    // Send message to background script
+    try {
+        port.postMessage({
+            type: 'set-remember-me',
+            payload: {
+                enabled: enabled,
+                duration: duration
+            }
+        });
+
+        // Show/hide options immediately for better UX
+        elements.rememberMeOptions.style.display = enabled ? 'block' : 'none';
+
+    } catch (error) {
+        console.error('Error sending Remember Me toggle:', error);
+        elements.rememberMeStatus.innerHTML = '<span style="color: var(--error-color);">Failed to communicate with background script</span>';
+        // Revert toggle state
+        elements.rememberMeToggle.checked = !enabled;
+        elements.rememberMeOptions.style.display = !enabled ? 'block' : 'none';
+    }
+}
+
+/**
+ * Handle session duration change
+ */
+async function handleSessionDurationChange() {
+    console.log('Session duration changed:', elements.sessionDuration.value);
+
+    // If Remember Me is enabled, update the setting
+    if (state.isAuthenticated && elements.rememberMeToggle.checked) {
+        const duration = parseInt(elements.sessionDuration.value);
+
+        // Show loading state
+        elements.rememberMeStatus.innerHTML = '<span style="color: var(--text-secondary);">Updating duration...</span>';
+
+        try {
+            port.postMessage({
+                type: 'set-remember-me',
+                payload: {
+                    enabled: true,
+                    duration: duration
+                }
+            });
+        } catch (error) {
+            console.error('Error sending session duration update:', error);
+            elements.rememberMeStatus.innerHTML = '<span style="color: var(--error-color);">Failed to update duration</span>';
+        }
+    }
+}
+
+/**
+ * Request Remember Me status from background
+ */
+function requestRememberMeStatus() {
+    if (!state.isAuthenticated || !port) {
+        return;
+    }
+
+    try {
+        console.log('Requesting Remember Me status from background');
+        port.postMessage({
+            type: 'get-remember-me-status'
+        });
+    } catch (error) {
+        console.error('Error requesting Remember Me status:', error);
+    }
 }

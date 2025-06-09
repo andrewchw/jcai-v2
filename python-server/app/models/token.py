@@ -1,10 +1,8 @@
-"""
-Database models for OAuth tokens in the Jira Chatbot API.
+"""Database models for OAuth tokens in the Jira Chatbot API.
 
 This module defines the Token model for storing and managing OAuth tokens.
 """
 
-import json
 import os
 from datetime import datetime
 
@@ -12,7 +10,6 @@ from app.core.database import Base
 from cryptography.fernet import Fernet
 from sqlalchemy import JSON, Boolean, Column, Float, ForeignKey, String
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
 
 # Setup encryption for tokens
 # In production, store this in a secure location outside of code
@@ -28,7 +25,7 @@ cipher_suite = Fernet(
 
 
 class OAuthToken(Base):
-    """OAuth token model for storing and managing OAuth tokens"""
+    """OAuth token model for storing and managing OAuth tokens."""
 
     __tablename__ = "oauth_tokens"
 
@@ -57,6 +54,13 @@ class OAuthToken(Base):
     last_used_at = Column(Float, nullable=True)
     last_refreshed_at = Column(Float, nullable=True)
 
+    # "Remember Me" feature fields
+    is_extended_session = Column(Boolean, default=False)
+    extended_expires_at = Column(
+        Float, nullable=True
+    )  # Extended expiration for "Remember Me"
+    original_expires_at = Column(Float, nullable=True)  # Original short-term expiration
+
     # Additional data
     scope = Column(String, nullable=True)
     additional_data = Column(JSON, nullable=True)
@@ -65,19 +69,19 @@ class OAuthToken(Base):
     is_active = Column(Boolean, default=True)
 
     def __repr__(self):
-        """String representation of token"""
+        """Get string representation of token."""
         return f"<OAuthToken {self.id} for user {self.user_id} ({self.provider})>"
 
     @property
     def access_token(self):
-        """Get decrypted access token"""
+        """Get decrypted access token."""
         if not self.access_token_encrypted:
             return None
         return cipher_suite.decrypt(self.access_token_encrypted.encode()).decode()
 
     @access_token.setter
     def access_token(self, value):
-        """Set encrypted access token"""
+        """Set encrypted access token."""
         if value is None:
             self.access_token_encrypted = None
         else:
@@ -85,44 +89,69 @@ class OAuthToken(Base):
 
     @property
     def refresh_token(self):
-        """Get decrypted refresh token"""
+        """Get decrypted refresh token."""
         if not self.refresh_token_encrypted:
             return None
         return cipher_suite.decrypt(self.refresh_token_encrypted.encode()).decode()
 
     @refresh_token.setter
     def refresh_token(self, value):
-        """Set encrypted refresh token"""
+        """Set encrypted refresh token."""
         if value is None:
             self.refresh_token_encrypted = None
         else:
             self.refresh_token_encrypted = cipher_suite.encrypt(value.encode()).decode()
 
     @property
+    def effective_expires_at(self):
+        """Get the effective expiration time considering extended sessions."""
+        if self.is_extended_session and self.extended_expires_at:
+            return self.extended_expires_at
+        return self.expires_at
+
+    @property
     def is_expired(self):
-        """Check if token is expired"""
-        return self.expires_at < datetime.now().timestamp()
+        """Check if token is expired (considering extended sessions)."""
+        return self.effective_expires_at < datetime.now().timestamp()
 
     @property
     def seconds_to_expiry(self):
-        """Get seconds until token expires"""
-        return max(0, self.expires_at - datetime.now().timestamp())
+        """Get seconds until token expires (considering extended sessions)."""
+        return max(0, self.effective_expires_at - datetime.now().timestamp())
+
+    def enable_extended_session(self, extended_duration_days=7):
+        """Enable extended session for "Remember Me" functionality."""
+        self.is_extended_session = True
+        self.original_expires_at = self.expires_at
+        self.extended_expires_at = datetime.now().timestamp() + (
+            extended_duration_days * 24 * 60 * 60
+        )
+
+    def disable_extended_session(self):
+        """Disable extended session and revert to original expiration."""
+        self.is_extended_session = False
+        if self.original_expires_at:
+            self.expires_at = self.original_expires_at
+        self.extended_expires_at = None
+        self.original_expires_at = None
 
     def to_dict(self):
-        """Convert token to dictionary format (for use with existing token-handling code)"""
+        """Convert token to dictionary format (for use with existing token-handling code)."""
         return {
             "access_token": self.access_token,
             "refresh_token": self.refresh_token,
             "token_type": self.token_type,
-            "expires_at": self.expires_at,
+            "expires_at": self.effective_expires_at,  # Use effective expiration
             "created_at": self.created_at,
             "scope": self.scope,
+            "is_extended_session": self.is_extended_session,
+            "extended_expires_at": self.extended_expires_at,
             **(self.additional_data or {}),
         }
 
     @classmethod
     def from_dict(cls, user_id, token_dict, provider="jira"):
-        """Create a token from dictionary data"""
+        """Create a token from dictionary data."""
         # Create copy to avoid modifying original
         token_data = token_dict.copy()
 
@@ -132,6 +161,10 @@ class OAuthToken(Base):
         token_type = token_data.pop("token_type", "Bearer")
         expires_at = token_data.pop("expires_at", None)
         scope = token_data.pop("scope", None)
+
+        # Extract extended session fields
+        is_extended_session = token_data.pop("is_extended_session", False)
+        extended_expires_at = token_data.pop("extended_expires_at", None)
 
         # If expires_at is not provided but expires_in is, calculate expires_at
         if expires_at is None and "expires_in" in token_data:
@@ -146,6 +179,8 @@ class OAuthToken(Base):
             token_type=token_type,
             expires_at=expires_at,
             scope=scope,
+            is_extended_session=is_extended_session,
+            extended_expires_at=extended_expires_at,
             additional_data=token_data,
         )
 

@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JIRA Chatbot Extension - Remember Me Demo</title>
+    <style>
+        /* Copy extension styles for authentic look */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 16px;
+            background-color: #f5f7fa;
+            font-size: 14px;
+            width: 350px;
+            min-height: 500px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #0052CC, #0065FF);
+            color: white;
+            padding: 16px;
+            margin: -16px -16px 16px -16px;
+            text-align: center;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .auth-section {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .remember-me-section {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            display: none;
+        }
+
+        .remember-me-section.visible {
+            display: block;
+        }
+
+        .setting-item {
+            margin: 12px 0;
+        }
+
+        .checkbox {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .checkbox input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+        }
+
+        .checkbox label {
+            font-weight: 500;
+            color: #344563;
+        }
+
+        .remember-me-options {
+            margin-left: 24px;
+            margin-top: 12px;
+            padding: 12px;
+            background-color: #f8f9fa;
+            border-radius: 6px;
+            border-left: 3px solid #0052CC;
+        }
+
+        .remember-me-status {
+            margin-top: 12px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .status-success {
+            background-color: #d4f4dd;
+            color: #0d4f14;
+            border: 1px solid #9dd9a3;
+        }
+
+        .status-error {
+            background-color: #fde8e8;
+            color: #d32f2f;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status-loading {
+            background-color: #e3f2fd;
+            color: #1565c0;
+            border: 1px solid #bbdefb;
+        }
+
+        .status-info {
+            background-color: #e8f4fd;
+            color: #0052CC;
+            border: 1px solid #b3d9ff;
+        }
+
+        button {
+            background: linear-gradient(135deg, #0052CC, #0065FF);
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 14px;
+            width: 100%;
+            margin: 4px 0;
+            transition: all 0.2s ease;
+        }
+
+        button:hover {
+            background: linear-gradient(135deg, #003d99, #0052CC);
+            transform: translateY(-1px);
+        }
+
+        button:disabled {
+            background: #9e9e9e;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 2px solid #e1e5e9;
+            border-radius: 6px;
+            font-size: 14px;
+            background-color: white;
+        }
+
+        select:focus {
+            border-color: #0052CC;
+            outline: none;
+        }
+
+        .user-info {
+            background-color: #f8f9fa;
+            padding: 12px;
+            border-radius: 6px;
+            margin: 12px 0;
+            font-size: 13px;
+            color: #6b778c;
+        }
+
+        .demo-controls {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            border-left: 4px solid #ff9800;
+        }
+
+        .demo-controls h3 {
+            margin: 0 0 12px 0;
+            color: #ff9800;
+            font-size: 16px;
+        }
+
+        .demo-button {
+            background: #ff9800;
+            margin: 2px;
+            padding: 8px 12px;
+            font-size: 13px;
+        }
+
+        .demo-button:hover {
+            background: #f57c00;
+        }
+
+        .log-section {
+            background: #1e1e1e;
+            color: #f5f5f5;
+            padding: 12px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 16px;
+        }
+
+        .log-entry {
+            margin: 2px 0;
+            padding: 2px 0;
+        }
+
+        .log-success {
+            color: #4caf50;
+        }
+
+        .log-error {
+            color: #f44336;
+        }
+
+        .log-info {
+            color: #2196f3;
+        }
+
+        .log-warn {
+            color: #ff9800;
+        }
+
+        h3 {
+            margin: 0 0 12px 0;
+            color: #344563;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .auth-status {
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-weight: 500;
+            text-align: center;
+            margin: 8px 0;
+        }
+
+        .auth-success {
+            background-color: #d4f4dd;
+            color: #0d4f14;
+            border: 1px solid #9dd9a3;
+        }
+
+        .auth-pending {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>🤖 JIRA Chatbot Assistant</h1>
+    </div>
+
+    <div class="demo-controls">
+        <h3>🧪 Demo Controls</h3>
+        <button class="demo-button" onclick="simulateLogin()">Simulate OAuth Login</button>
+        <button class="demo-button" onclick="simulateLogout()">Simulate Logout</button>
+        <button class="demo-button" onclick="checkBackendStatus()">Check Backend</button>
+        <button class="demo-button" onclick="clearLogs()">Clear Logs</button>
+    </div>
+
+    <div class="auth-section">
+        <h3>Authentication Status</h3>
+        <div id="auth-status" class="auth-status auth-pending">Not Authenticated</div>
+        <div id="user-info" class="user-info" style="display: none;">
+            User ID: <span id="current-user-id">-</span>
+        </div>
+        <button id="login-button" onclick="simulateLogin()">Login with JIRA</button>
+        <button id="logout-button" onclick="simulateLogout()" style="display: none;">Logout</button>
+    </div>
+
+    <div id="remember-me-section" class="remember-me-section">
+        <h3>Session Settings</h3>
+        <div class="setting-item checkbox">
+            <input type="checkbox" id="remember-me-toggle" onchange="handleRememberMeToggle()">
+            <label for="remember-me-toggle">Remember Me (Extended Session)</label>
+        </div>
+        <div id="remember-me-options" class="remember-me-options" style="display: none;">
+            <div class="setting-item">
+                <label for="session-duration">Session Duration</label>
+                <select id="session-duration" onchange="handleSessionDurationChange()">
+                    <option value="24">1 Day</option>
+                    <option value="72">3 Days</option>
+                    <option value="168" selected>1 Week</option>
+                    <option value="336">2 Weeks</option>
+                    <option value="720">1 Month</option>
+                </select>
+            </div>
+        </div>
+        <div id="remember-me-status" class="remember-me-status status-info">Ready</div>
+    </div>
+
+    <div class="log-section">
+        <div id="log-container"></div>
+    </div>
+
+    <script>
+        // Simulate browser extension environment
+        const API_BASE_URL = 'http://localhost:8000/api';
+
+        // State management (simulates extension's tokenState)
+        let extensionState = {
+            isAuthenticated: false,
+            userId: null,
+            rememberMeEnabled: false,
+            extendedSessionExpiry: null
+        };
+
+        // DOM elements
+        const elements = {
+            authStatus: document.getElementById('auth-status'),
+            userInfo: document.getElementById('user-info'),
+            currentUserId: document.getElementById('current-user-id'),
+            loginButton: document.getElementById('login-button'),
+            logoutButton: document.getElementById('logout-button'),
+            rememberMeSection: document.getElementById('remember-me-section'),
+            rememberMeToggle: document.getElementById('remember-me-toggle'),
+            rememberMeOptions: document.getElementById('remember-me-options'),
+            sessionDuration: document.getElementById('session-duration'),
+            rememberMeStatus: document.getElementById('remember-me-status'),
+            logContainer: document.getElementById('log-container')
+        };
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry log-${type}`;
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            elements.logContainer.appendChild(logEntry);
+            elements.logContainer.scrollTop = elements.logContainer.scrollHeight;
+        }
+
+        function clearLogs() {
+            elements.logContainer.innerHTML = '';
+            log('Logs cleared', 'info');
+        }
+
+        function updateRememberMeStatus(message, type = 'info') {
+            elements.rememberMeStatus.innerHTML = message;
+            elements.rememberMeStatus.className = `remember-me-status status-${type}`;
+        }
+
+        async function checkBackendStatus() {
+            log('Checking backend server status...', 'info');
+            try {
+                const response = await fetch(`${API_BASE_URL}/health`);
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`Backend server is online (v${data.version})`, 'success');
+                    log(`Multi-user support: ${data.multi_user.enabled ? 'Enabled' : 'Disabled'}`, 'info');
+                } else {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+            } catch (error) {
+                log(`Backend server error: ${error.message}`, 'error');
+            }
+        }
+
+        async function simulateLogin() {
+            log('Simulating OAuth login...', 'info');
+
+            // Generate test user ID
+            const testUserId = `extension-demo-${Date.now()}`;
+
+            try {
+                // Simulate OAuth callback to create user
+                log(`Creating test user: ${testUserId}`, 'info');
+                const response = await fetch(`${API_BASE_URL}/auth/oauth/v2/callback?code=test_auth_code&state=test_state&setup_example=true&user_id=${testUserId}`);
+
+                if (!response.ok) {
+                    throw new Error(`OAuth callback failed: ${response.status}`);
+                }
+
+                // Update UI state
+                extensionState.isAuthenticated = true;
+                extensionState.userId = testUserId;
+
+                elements.authStatus.textContent = 'Authenticated ✅';
+                elements.authStatus.className = 'auth-status auth-success';
+                elements.userInfo.style.display = 'block';
+                elements.currentUserId.textContent = testUserId;
+                elements.loginButton.style.display = 'none';
+                elements.logoutButton.style.display = 'block';
+                elements.rememberMeSection.classList.add('visible');
+
+                log(`Login successful! User: ${testUserId}`, 'success');
+
+                // Check Remember Me status
+                await checkRememberMeStatus();
+
+            } catch (error) {
+                log(`Login failed: ${error.message}`, 'error');
+            }
+        }
+
+        function simulateLogout() {
+            log('Logging out...', 'info');
+
+            // Reset state
+            extensionState.isAuthenticated = false;
+            extensionState.userId = null;
+            extensionState.rememberMeEnabled = false;
+            extensionState.extendedSessionExpiry = null;
+
+            // Update UI
+            elements.authStatus.textContent = 'Not Authenticated';
+            elements.authStatus.className = 'auth-status auth-pending';
+            elements.userInfo.style.display = 'none';
+            elements.loginButton.style.display = 'block';
+            elements.logoutButton.style.display = 'none';
+            elements.rememberMeSection.classList.remove('visible');
+            elements.rememberMeToggle.checked = false;
+            elements.rememberMeOptions.style.display = 'none';
+
+            updateRememberMeStatus('Ready', 'info');
+            log('Logged out successfully', 'success');
+        }
+
+        async function checkRememberMeStatus() {
+            if (!extensionState.isAuthenticated || !extensionState.userId) {
+                return;
+            }
+
+            log('Checking Remember Me status...', 'info');
+            updateRememberMeStatus('Checking status...', 'loading');
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/auth/oauth/v2/remember-me/status?user_id=${encodeURIComponent(extensionState.userId)}`, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Client-ID': extensionState.userId
+                    }
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(`HTTP ${response.status}: ${errorData.detail || response.statusText}`);
+                }
+
+                const result = await response.json();
+                log(`Status response: ${JSON.stringify(result, null, 2)}`, 'success');
+
+                // Update UI based on response
+                const isEnabled = result.remember_me_enabled || false;
+                extensionState.rememberMeEnabled = isEnabled;
+
+                elements.rememberMeToggle.checked = isEnabled;
+                elements.rememberMeOptions.style.display = isEnabled ? 'block' : 'none';
+
+                if (isEnabled) {
+                    const expiry = result.token_status?.extended_expires_at
+                        ? new Date(result.token_status.extended_expires_at * 1000).toLocaleString()
+                        : 'Unknown';
+                    updateRememberMeStatus(`Extended session active until ${expiry}`, 'success');
+                    extensionState.extendedSessionExpiry = result.token_status?.extended_expires_at;
+                } else {
+                    updateRememberMeStatus('Extended session disabled', 'info');
+                }
+
+            } catch (error) {
+                log(`Error checking status: ${error.message}`, 'error');
+                updateRememberMeStatus(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function handleRememberMeToggle() {
+            if (!extensionState.isAuthenticated || !extensionState.userId) {
+                log('Cannot toggle Remember Me: Not authenticated', 'error');
+                elements.rememberMeToggle.checked = false;
+                return;
+            }
+
+            const enabled = elements.rememberMeToggle.checked;
+            const duration = enabled ? parseInt(elements.sessionDuration.value) : null;
+
+            log(`Remember Me toggle: ${enabled ? 'enabled' : 'disabled'} (duration: ${duration}h)`, 'info');
+            updateRememberMeStatus('Updating settings...', 'loading');
+
+            try {
+                const endpoint = enabled ? 'enable' : 'disable';
+                const url = `${API_BASE_URL}/auth/oauth/v2/remember-me/${endpoint}?user_id=${encodeURIComponent(extensionState.userId)}`;
+
+                const requestBody = enabled ? { duration_hours: duration || 168 } : {};
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Client-ID': extensionState.userId
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(`HTTP ${response.status}: ${errorData.detail || response.statusText}`);
+                }
+
+                const result = await response.json();
+                log(`Toggle response: ${JSON.stringify(result, null, 2)}`, 'success');
+
+                // Update UI and state
+                extensionState.rememberMeEnabled = enabled;
+                elements.rememberMeOptions.style.display = enabled ? 'block' : 'none';
+
+                if (enabled && result.extended_session_expiry) {
+                    const expiry = new Date(result.extended_session_expiry * 1000).toLocaleString();
+                    updateRememberMeStatus(`Extended session enabled until ${expiry}`, 'success');
+                    extensionState.extendedSessionExpiry = result.extended_session_expiry;
+                } else {
+                    updateRememberMeStatus(enabled ? 'Extended session enabled' : 'Extended session disabled', 'success');
+                    extensionState.extendedSessionExpiry = null;
+                }
+
+            } catch (error) {
+                log(`Error toggling Remember Me: ${error.message}`, 'error');
+                updateRememberMeStatus(`Error: ${error.message}`, 'error');
+
+                // Revert toggle state
+                elements.rememberMeToggle.checked = !enabled;
+                elements.rememberMeOptions.style.display = !enabled ? 'block' : 'none';
+            }
+        }
+
+        async function handleSessionDurationChange() {
+            if (!extensionState.isAuthenticated || !extensionState.userId) {
+                return;
+            }
+
+            const duration = parseInt(elements.sessionDuration.value);
+            log(`Session duration changed to: ${duration} hours`, 'info');
+
+            // If Remember Me is enabled, update the setting
+            if (elements.rememberMeToggle.checked) {
+                log('Updating extended session duration...', 'info');
+                updateRememberMeStatus('Updating duration...', 'loading');
+
+                try {
+                    const response = await fetch(`${API_BASE_URL}/auth/oauth/v2/remember-me/enable?user_id=${encodeURIComponent(extensionState.userId)}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-Client-ID': extensionState.userId
+                        },
+                        body: JSON.stringify({ duration_hours: duration })
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        throw new Error(`HTTP ${response.status}: ${errorData.detail || response.statusText}`);
+                    }
+
+                    const result = await response.json();
+                    log(`Duration update response: ${JSON.stringify(result, null, 2)}`, 'success');
+
+                    if (result.extended_session_expiry) {
+                        const expiry = new Date(result.extended_session_expiry * 1000).toLocaleString();
+                        updateRememberMeStatus(`Duration updated - expires ${expiry}`, 'success');
+                        extensionState.extendedSessionExpiry = result.extended_session_expiry;
+                    } else {
+                        updateRememberMeStatus('Duration updated successfully', 'success');
+                    }
+
+                } catch (error) {
+                    log(`Error updating duration: ${error.message}`, 'error');
+                    updateRememberMeStatus(`Error: ${error.message}`, 'error');
+                }
+            }
+        }
+
+        // Initialize on page load
+        window.addEventListener('load', () => {
+            log('JIRA Chatbot Extension Demo initialized', 'info');
+            log('Click "Simulate OAuth Login" to test Remember Me functionality', 'info');
+            updateRememberMeStatus('Please login first', 'info');
+            checkBackendStatus();
+        });
+    </script>
+</body>
+
+</html>

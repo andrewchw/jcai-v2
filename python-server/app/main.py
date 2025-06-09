@@ -1,3 +1,5 @@
+"""Main FastAPI application for the Jira Chatbot API."""
+
 import os
 import pathlib
 from datetime import datetime
@@ -8,7 +10,7 @@ from app.api.routes import api_router
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.init_db import init_db
-from fastapi import Depends, FastAPI, Request, Response
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -33,9 +35,7 @@ async def root_oauth_callback(
     success: bool = False,
     db: Session = Depends(get_db),  # Add database session
 ):
-    """
-    Root level OAuth callback that matches the callback URL registered in Atlassian Developer Console
-    """
+    """Root level OAuth callback that matches the callback URL registered in Atlassian Developer Console."""
     # Extract user_id from state parameter (format: "user_id:abc123")
     user_id = None
     if state and state.startswith("user_id:"):
@@ -94,7 +94,7 @@ app.include_router(api_router, prefix="/api")
 # Startup event handler to initialize the database
 @app.on_event("startup")
 async def startup_event():
-    """Initialize database on startup"""
+    """Initialize database on startup."""
     import logging
 
     logger = logging.getLogger("app.startup")
@@ -105,11 +105,7 @@ async def startup_event():
 
     data_dir = Path(__file__).parent.parent / "data"
     data_dir.mkdir(exist_ok=True)
-    logger.info(f"Data directory: {data_dir}")
-
-    # Initialize database
-    from app.core.init_db import init_db
-
+    logger.info(f"Data directory: {data_dir}")  # Initialize database
     init_db()
     logger.info("Database initialized successfully")
 
@@ -126,7 +122,49 @@ async def startup_event():
     multi_user_enabled = (
         os.environ.get("JIRA_ENABLE_MULTI_USER", "true").lower() == "true"
     )
-    logger.info(f"Multi-user mode: {'enabled' if multi_user_enabled else 'disabled'}")
+    logger.info(
+        f"Multi-user mode: {'enabled' if multi_user_enabled else 'disabled'}"
+    )  # Initialize multi-user token refresh service
+
+    if multi_user_enabled:
+        try:
+            from app.services.multi_user_oauth_token_service import \
+                MultiUserOAuthTokenService
+
+            # Check if OAuth credentials are configured
+            if settings.JIRA_OAUTH_CLIENT_ID and settings.JIRA_OAUTH_CLIENT_SECRET:
+                token_service = MultiUserOAuthTokenService(
+                    client_id=settings.JIRA_OAUTH_CLIENT_ID,
+                    client_secret=settings.JIRA_OAUTH_CLIENT_SECRET,
+                    token_url="https://auth.atlassian.com/oauth/token",
+                    check_interval=300,  # 5 minutes
+                    refresh_threshold=600,  # 10 minutes before expiry
+                    max_retries=3,
+                    retry_delay=30,
+                )
+
+                # Add event handler for logging
+                def log_token_event(event):
+                    if event.event_type == "refresh":
+                        logger.info(f"Token refreshed for user {event.user_id}")
+                    elif event.event_type == "error":
+                        logger.error(
+                            f"Token refresh error for user {event.user_id}: {event.message}"
+                        )
+                    elif event.event_type == "warning":
+                        logger.warning(
+                            f"Token warning for user {event.user_id}: {event.message}"
+                        )
+
+                token_service.add_event_handler(log_token_event)
+                token_service.start()
+                logger.info("Multi-user token refresh service started successfully")
+            else:
+                logger.warning(
+                    "OAuth credentials not configured - token refresh service disabled"
+                )
+        except Exception as e:
+            logger.error(f"Failed to start multi-user token refresh service: {str(e)}")
 
     # Print URL info
     host = os.environ.get("HOST", "localhost")
@@ -135,10 +173,35 @@ async def startup_event():
     logger.info(f"Documentation at: http://{host}:{port}/docs")
 
 
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Clean up resources on shutdown."""
+    import logging
+
+    logger = logging.getLogger("app.shutdown")
+    logger.info("Shutting down Jira Chatbot API")
+
+    # Stop multi-user token refresh service
+    try:
+        from app.services.multi_user_oauth_token_service import \
+            MultiUserOAuthTokenService
+
+        # Get the singleton instance if it exists
+        if (
+            hasattr(MultiUserOAuthTokenService, "_instance")
+            and MultiUserOAuthTokenService._instance
+        ):
+            token_service = MultiUserOAuthTokenService._instance
+            token_service.stop()
+            logger.info("Multi-user token refresh service stopped")
+    except Exception as e:
+        logger.error(f"Error stopping multi-user token refresh service: {str(e)}")
+
+
 # Health check endpoint
 @app.get("/api/health")
 async def health_check(user_id: Optional[str] = None, db: Session = Depends(get_db)):
-    """Health check endpoint for the extension"""
+    """Health check endpoint for the extension."""
     is_authenticated = False
     token_info: Dict[str, Any] = {"present": False}
     debug_info: Dict[str, Any] = {}
@@ -246,6 +309,7 @@ async def health_check(user_id: Optional[str] = None, db: Session = Depends(get_
 # Root endpoint
 @app.get("/")
 async def root():
+    """Root endpoint providing API information."""
     return {
         "message": "Welcome to Jira Chatbot API",
         "version": "0.2.0",
@@ -265,6 +329,7 @@ async def root():
 # Token dashboard endpoint
 @app.get("/dashboard/token")
 async def token_dashboard():
+    """Token dashboard endpoint."""
     static_dir = pathlib.Path(__file__).parent / "static"
     dashboard_file = static_dir / "token_dashboard.html"
 
@@ -286,10 +351,9 @@ async def token_dashboard():
 # Alternative token dashboard endpoint with absolute path
 @app.get("/dashboard/token2")
 async def token_dashboard_alt():
-    # Use an absolute path as a fallback
+    """Alternative token dashboard endpoint with absolute path."""  # Use an absolute path as a fallback
     script_dir = pathlib.Path(__file__).parent.resolve()
     project_root = script_dir.parent
-    dashboard_file = project_root / "static" / "token_dashboard.html"
 
     # Try multiple possible locations
     possible_paths = [

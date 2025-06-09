@@ -89,6 +89,28 @@
                         </div>
                         <button id="login-button" class="action-button primary">Login to JIRA</button>
                         <button id="logout-button" class="action-button" disabled>Logout</button>
+
+                        <!-- Remember Me Section -->
+                        <div id="remember-me-section" class="remember-me-section" style="display: none;">
+                            <h3>Session Settings</h3>
+                            <div class="setting-item checkbox">
+                                <input type="checkbox" id="remember-me-toggle">
+                                <label for="remember-me-toggle">Remember Me (Extended Session)</label>
+                            </div>
+                            <div id="remember-me-options" class="remember-me-options" style="display: none;">
+                                <div class="setting-item">
+                                    <label for="session-duration">Session Duration</label>
+                                    <select id="session-duration">
+                                        <option value="24">1 Day</option>
+                                        <option value="72">3 Days</option>
+                                        <option value="168" selected>1 Week</option>
+                                        <option value="336">2 Weeks</option>
+                                        <option value="720">1 Month</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div id="remember-me-status" class="remember-me-status"></div>
+                        </div>
                     </div>
                 </div>
                 <div class="settings-section">
