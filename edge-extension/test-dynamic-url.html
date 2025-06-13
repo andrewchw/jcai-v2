@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Test Dynamic URL Configuration</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ccc;
+        }
+
+        .success {
+            color: green;
+        }
+
+        .error {
+            color: red;
+        }
+
+        .info {
+            color: blue;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Extension Dynamic URL Test</h1>
+
+    <div class="test-section">
+        <h3>1. Test Settings Storage</h3>
+        <button onclick="setServerUrl()">Set Server URL</button>
+        <button onclick="getServerUrl()">Get Server URL</button>
+        <div id="settings-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>2. Test API Connection</h3>
+        <button onclick="testApiConnection()">Test API Health</button>
+        <div id="api-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>3. Test Chat Handler</h3>
+        <button onclick="testChatHandler()">Test Chat Health</button>
+        <div id="chat-result"></div>
+    </div>
+
+    <script>
+        // Mock chrome.storage.local for testing
+        if (typeof chrome === 'undefined') {
+            window.chrome = {
+                storage: {
+                    local: {
+                        data: {},
+                        get: function (keys) {
+                            return Promise.resolve(this.data);
+                        },
+                        set: function (data) {
+                            Object.assign(this.data, data);
+                            return Promise.resolve();
+                        }
+                    }
+                }
+            };
+        }
+
+        async function setServerUrl() {
+            const url = 'https://67fa-203-145-94-95.ngrok-free.app';
+            await chrome.storage.local.set({ serverUrl: url });
+            document.getElementById('settings-result').innerHTML =
+                `<div class="success">✓ Server URL set to: ${url}</div>`;
+        }
+
+        async function getServerUrl() {
+            const settings = await chrome.storage.local.get(['serverUrl']);
+            const serverUrl = settings.serverUrl || 'Not set';
+            document.getElementById('settings-result').innerHTML =
+                `<div class="info">Current Server URL: ${serverUrl}</div>`;
+        }
+
+        async function getApiBaseUrl() {
+            try {
+                const settings = await chrome.storage.local.get(['serverUrl']);
+                const serverUrl = settings.serverUrl || 'https://67fa-203-145-94-95.ngrok-free.app';
+                return `${serverUrl}/api`;
+            } catch (error) {
+                console.error('Error getting server URL from settings:', error);
+                return 'https://67fa-203-145-94-95.ngrok-free.app/api';
+            }
+        }
+
+        async function testApiConnection() {
+            try {
+                const apiBaseUrl = await getApiBaseUrl();
+                const response = await fetch(`${apiBaseUrl}/health`, {
+                    headers: {
+                        'ngrok-skip-browser-warning': 'true'
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('api-result').innerHTML =
+                        `<div class="success">✓ API connection successful!</div>
+                         <div class="info">URL: ${apiBaseUrl}/health</div>
+                         <div class="info">Status: ${data.status}</div>
+                         <div class="info">Version: ${data.version}</div>`;
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+            } catch (error) {
+                document.getElementById('api-result').innerHTML =
+                    `<div class="error">✗ API connection failed: ${error.message}</div>`;
+            }
+        }
+
+        async function testChatHandler() {
+            try {
+                const baseUrl = await getApiBaseUrl();
+                const response = await fetch(`${baseUrl}/chat/health`, {
+                    headers: {
+                        'ngrok-skip-browser-warning': 'true'
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('chat-result').innerHTML =
+                        `<div class="success">✓ Chat service connection successful!</div>
+                         <div class="info">URL: ${baseUrl}/chat/health</div>
+                         <div class="info">Response: ${JSON.stringify(data)}</div>`;
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+            } catch (error) {
+                document.getElementById('chat-result').innerHTML =
+                    `<div class="error">✗ Chat service connection failed: ${error.message}</div>`;
+            }
+        }
+
+        // Auto-set server URL on page load
+        window.onload = function () {
+            setServerUrl();
+        };
+    </script>
+</body>
+
+</html>

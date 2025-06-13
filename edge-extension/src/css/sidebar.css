@@ -174,6 +174,110 @@ body {
     text-align: center;
 }
 
+/* Enhanced Chat Features */
+.confidence-indicator {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+
+.confidence-indicator.high {
+    background-color: var(--success-color);
+}
+
+.confidence-indicator.medium {
+    background-color: #ffa500;
+    /* Orange */
+}
+
+.confidence-indicator.low {
+    background-color: var(--error-color);
+}
+
+.message-timestamp {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+    opacity: 0.7;
+}
+
+.jira-result {
+    margin-top: 8px;
+    padding: 8px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.jira-result.success {
+    background-color: #d4edda;
+    border: 1px solid #c3e6cb;
+    color: #155724;
+}
+
+.jira-result.error {
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+    color: #721c24;
+}
+
+.jira-issue-link {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.jira-issue-link:hover {
+    text-decoration: underline;
+}
+
+.typing-indicator {
+    opacity: 0.6;
+    font-style: italic;
+}
+
+.typing-indicator::after {
+    content: '...';
+    animation: typing 1.5s infinite;
+}
+
+@keyframes typing {
+
+    0%,
+    60% {
+        content: '...';
+    }
+
+    80% {
+        content: '..';
+    }
+
+    100% {
+        content: '.';
+    }
+}
+
+/* Enhanced message content */
+.message-text {
+    line-height: 1.4;
+}
+
+.message-content {
+    position: relative;
+}
+
+/* Processing state */
+.chat-processing .input-container {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+.chat-processing textarea {
+    background-color: #f5f5f5;
+}
+
 /* Input Container */
 .input-container {
     border-top: 1px solid var(--border-color);

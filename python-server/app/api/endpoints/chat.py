@@ -1,6 +1,7 @@
 """Chat endpoint for Dialogflow-inspired conversational Jira interface."""
 
 import logging
+import os
 import traceback
 from typing import Any, Dict
 
@@ -27,9 +28,13 @@ logger.setLevel(logging.DEBUG)
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
-# Initialize LLM service
+# Initialize LLM service with proper configuration
 llm_service = DialogflowInspiredLLMService(
-    openrouter_api_key=settings.OPENROUTER_API_KEY, model=settings.DEFAULT_LLM_MODEL
+    openrouter_api_key=settings.OPENROUTER_API_KEY,
+    model=settings.DEFAULT_LLM_MODEL,
+    base_url=os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
+    temperature=settings.LLM_TEMPERATURE,
+    max_tokens=settings.LLM_MAX_TOKENS
 )
 
 

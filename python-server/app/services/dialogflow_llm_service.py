@@ -190,17 +190,30 @@ class DialogflowInspiredLLMService:
     """LLM service implementing Dialogflow-style intent processing"""
 
     def __init__(
-        self, openrouter_api_key: str, model: str = "meta-llama/llama-3-8b-instruct"
+        self,
+        openrouter_api_key: str,
+        model: str = "meta-llama/llama-3-8b-instruct",
+        base_url: str = "https://openrouter.ai/api/v1",
+        temperature: float = 0.7,
+        max_tokens: int = 4096
     ):
         self.api_key = openrouter_api_key
         self.model = model
+        self.base_url = base_url
+        self.temperature = temperature
+        self.max_tokens = max_tokens
         self.contexts: Dict[str, ConversationContext] = {}
+
+        if not openrouter_api_key:
+            raise ValueError("OpenRouter API key is required")
 
         # Initialize OpenRouter client
         self.client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
+            base_url=base_url,
             api_key=openrouter_api_key,
         )
+
+        logger.info(f"DialogflowInspiredLLMService initialized with model: {model}")
 
     async def process_message(self, user_id: str, message: str) -> Dict[str, Any]:
         """Main processing pipeline following Dialogflow pattern"""

@@ -38,8 +38,8 @@
                     <!-- Messages will be appended here by JavaScript -->
                 </div>
                 <div class="input-container">
-                    <textarea id="user-input"
-                        placeholder="Create issues: Summary: &quot;Task title&quot;, Assignee: &quot;Name&quot;, Due Date: &quot;Friday&quot; for Create Issue"
+                    <textarea id="chat-input"
+                        placeholder="Ask me anything about Jira! Try: 'Create a task for John to review docs by Friday' or 'What tasks are assigned to me?'"
                         rows="2"></textarea>
                     <div class="button-row">
                         <button id="help-button" class="action-button" title="Show command examples">?</button>
@@ -81,7 +81,7 @@
                     <h2>Connection</h2>
                     <div class="setting-item">
                         <label for="server-url">Server URL</label>
-                        <input type="text" id="server-url" value="http://localhost:8000">
+                        <input type="text" id="server-url" value="https://67fa-203-145-94-95.ngrok-free.app">
                     </div>
                     <div class="oauth-section">
                         <div id="oauth-status">
@@ -144,6 +144,7 @@
         </footer>
     </div>
 
+    <script src="../js/chat-handler.js"></script>
     <script src="../js/sidebar.js" type="module"></script>
 </body>
 

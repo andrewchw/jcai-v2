@@ -4,7 +4,23 @@
  */
 
 // Constants
-const API_BASE_URL = 'http://localhost:8000/api';
+//const API_BASE_URL = 'http://localhost:8000/api';
+// Dynamic API_BASE_URL - will be loaded from settings
+let API_BASE_URL = 'https://67fa-203-145-94-95.ngrok-free.app/api'; // Default fallback
+
+/**
+ * Get the current API base URL from settings
+ */
+async function getApiBaseUrl() {
+    try {
+        const settings = await chrome.storage.local.get(['serverUrl']);
+        const serverUrl = settings.serverUrl || 'https://67fa-203-145-94-95.ngrok-free.app';
+        return `${serverUrl}/api`;
+    } catch (error) {
+        console.error('Error getting server URL from settings:', error);
+        return API_BASE_URL; // Fallback to default
+    }
+}
 const TOKEN_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes (default)
 const FAST_TOKEN_CHECK_INTERVAL = 30 * 1000; // 30 seconds (right after auth)
 const FAST_CHECK_DURATION = 5 * 60 * 1000; // Use fast checking for 5 minutes after auth
@@ -297,10 +313,13 @@ function handleSidebarConnection(port) {
             if (!tokenState.isAuthenticated) {
                 console.log('Not authenticated, skipping project fetch');
                 return { error: 'Not authenticated', projects: [] };
-            }
-
-            console.log(`Fetching projects for user ID: ${tokenState.userId}`);
-            const response = await fetch(`${API_BASE_URL}/jira/v2/projects?user_id=${encodeURIComponent(tokenState.userId)}`);
+            } console.log(`Fetching projects for user ID: ${tokenState.userId}`);
+            const apiBaseUrl = await getApiBaseUrl();
+            const response = await fetch(`${apiBaseUrl}/jira/v2/projects?user_id=${encodeURIComponent(tokenState.userId)}`, {
+                headers: {
+                    'ngrok-skip-browser-warning': 'true'
+                }
+            });
 
             if (!response.ok) {
                 const errorText = await response.text();
@@ -344,10 +363,9 @@ function handleSidebarConnection(port) {
             if (!tokenState.isAuthenticated) {
                 console.log('Not authenticated, skipping tasks fetch');
                 return { error: 'Not authenticated', tasks: [] };
-            }
-
-            // Construct the URL with filters and user_id
-            const url = new URL(`${API_BASE_URL}/jira/v2/issues`);
+            }            // Construct the URL with filters and user_id
+            const apiBaseUrl = await getApiBaseUrl();
+            const url = new URL(`${apiBaseUrl}/jira/v2/issues`);
             url.searchParams.append('user_id', encodeURIComponent(tokenState.userId));
 
             // Always add a limit to prevent unbounded queries
@@ -383,11 +401,13 @@ function handleSidebarConnection(port) {
             // These individual parameters are used by the server if JQL is not provided
             // Keep them for backward compatibility, but our primary filtering is now via JQL
             if (filters.project) url.searchParams.append('project', filters.project);
-            if (filters.status) url.searchParams.append('status', filters.status);
-
-            console.log(`Fetching Jira tasks with filters:`, filters);
+            if (filters.status) url.searchParams.append('status', filters.status); console.log(`Fetching Jira tasks with filters:`, filters);
             console.log(`Full request URL: ${url.toString()}`);
-            const response = await fetch(url);
+            const response = await fetch(url, {
+                headers: {
+                    'ngrok-skip-browser-warning': 'true'
+                }
+            });
 
             if (!response.ok) {
                 const errorText = await response.text();
@@ -428,7 +448,7 @@ function handleSidebarConnection(port) {
 /**
  * Initiate OAuth login process
  */
-function initiateLogin() {
+async function initiateLogin() {
     console.log('Initiating login process');
 
     // Make sure the user ID is defined and properly saved before proceeding
@@ -438,11 +458,12 @@ function initiateLogin() {
 
     // IMPORTANT: Save to storage and wait for it to complete before creating the auth URL
     // This ensures the user ID is consistent between storage and memory
-    chrome.storage.local.set({ tokenState }, () => {
+    chrome.storage.local.set({ tokenState }, async () => {
         console.log('User ID confirmed in storage:', tokenState.userId);
 
         // Use the multi-user OAuth v2 endpoint with explicit user ID from tokenState
-        const authUrl = `${API_BASE_URL}/auth/oauth/v2/login?user_id=${encodeURIComponent(tokenState.userId)}`;
+        const apiBaseUrl = await getApiBaseUrl();
+        const authUrl = `${apiBaseUrl}/auth/oauth/v2/login?user_id=${encodeURIComponent(tokenState.userId)}`;
 
         console.log('Login URL created with user ID:', tokenState.userId);
 
@@ -549,19 +570,17 @@ async function handleRememberMeToggle(payload, port) {
             throw new Error('User ID not available');
         }
 
-        const { enabled, duration } = payload;
-
-        // Call the backend API to enable/disable extended session
+        const { enabled, duration } = payload;        // Call the backend API to enable/disable extended session
         const endpoint = enabled ? 'enable' : 'disable';
-        const url = `${API_BASE_URL}/auth/oauth/v2/remember-me/${endpoint}?user_id=${encodeURIComponent(tokenState.userId)}`;
-
-        const requestBody = enabled ? { duration_hours: duration || 168 } : {}; // Default 7 days
+        const apiBaseUrl = await getApiBaseUrl();
+        const url = `${apiBaseUrl}/auth/oauth/v2/remember-me/${endpoint}?user_id=${encodeURIComponent(tokenState.userId)}`; const requestBody = enabled ? { duration_hours: duration || 168 } : {}; // Default 7 days
 
         const response = await fetch(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-Client-ID': tokenState.userId
+                'X-Client-ID': tokenState.userId,
+                'ngrok-skip-browser-warning': 'true'
             },
             body: JSON.stringify(requestBody)
         });
@@ -627,13 +646,13 @@ async function handleGetRememberMeStatus(port) {
     try {
         if (!tokenState.userId) {
             throw new Error('User ID not available');
-        }
-
-        // Check backend for current extended session status
-        const response = await fetch(`${API_BASE_URL}/auth/oauth/v2/remember-me/status?user_id=${encodeURIComponent(tokenState.userId)}`, {
+        }        // Check backend for current extended session status
+        const apiBaseUrl = await getApiBaseUrl();
+        const response = await fetch(`${apiBaseUrl}/auth/oauth/v2/remember-me/status?user_id=${encodeURIComponent(tokenState.userId)}`, {
             headers: {
                 'Accept': 'application/json',
-                'X-Client-ID': tokenState.userId
+                'X-Client-ID': tokenState.userId,
+                'ngrok-skip-browser-warning': 'true'
             }
         });
 
@@ -740,12 +759,13 @@ async function attemptTokenRefresh() {
         }
 
         tokenState.lastRefreshAttempt = now;
-
-        const response = await fetch(`${API_BASE_URL}/auth/oauth/v2/refresh?user_id=${encodeURIComponent(tokenState.userId)}`, {
+        const apiBaseUrl = await getApiBaseUrl();
+        const response = await fetch(`${apiBaseUrl}/auth/oauth/v2/refresh?user_id=${encodeURIComponent(tokenState.userId)}`, {
             method: 'POST',
             headers: {
                 'Accept': 'application/json',
-                'X-Client-ID': tokenState.userId
+                'X-Client-ID': tokenState.userId,
+                'ngrok-skip-browser-warning': 'true'
             }
         });
 
@@ -1034,7 +1054,8 @@ async function checkOAuthToken(options = {}) {
         const timeoutPromise = new Promise((_, reject) => {
             setTimeout(() => reject(new Error(`Token check timed out after ${timeoutMs}ms`)), timeoutMs);
         });        // Create the actual fetch promise with all required parameters
-        const tokenStatusUrl = new URL(`${API_BASE_URL}/auth/oauth/v2/token/status`);
+        const apiBaseUrl = await getApiBaseUrl();
+        const tokenStatusUrl = new URL(`${apiBaseUrl}/auth/oauth/v2/token/status`);
 
         // CRITICAL FIX: user_id is a required parameter for the multi-user endpoint
         // Ensure it's always included and properly encoded
@@ -1055,14 +1076,13 @@ async function checkOAuthToken(options = {}) {
         if (tokenState.tokenData && tokenState.tokenData.access_token) {
             // Only include access_token reference if we have one (not the full token for security)
             tokenStatusUrl.searchParams.append('has_token', 'true');
-        }
-
-        console.log(`Requesting token status from: ${tokenStatusUrl.toString()}`);
+        } console.log(`Requesting token status from: ${tokenStatusUrl.toString()}`);
         const fetchPromise = fetch(tokenStatusUrl.toString(), {
             headers: {
                 'Accept': 'application/json',
                 'X-Client-Version': chrome.runtime.getManifest().version || '1.0.0',
-                'X-Client-ID': tokenState.userId
+                'X-Client-ID': tokenState.userId,
+                'ngrok-skip-browser-warning': 'true'
             }
         });// Race the fetch against the timeout
         const response = await Promise.race([fetchPromise, timeoutPromise]);
@@ -1400,11 +1420,14 @@ function stopTokenChecking() {
  */
 async function performLogout() {
     console.log('Performing logout for user ID:', tokenState.userId);
-    try {
-        // Call the server endpoint to invalidate the token, if applicable
+    try {        // Call the server endpoint to invalidate the token, if applicable
         if (tokenState.userId) {
-            await fetch(`${API_BASE_URL}/auth/oauth/v2/logout?user_id=${encodeURIComponent(tokenState.userId)}`, {
+            const apiBaseUrl = await getApiBaseUrl();
+            await fetch(`${apiBaseUrl}/auth/oauth/v2/logout?user_id=${encodeURIComponent(tokenState.userId)}`, {
                 method: 'POST', // Or GET, depending on your API
+                headers: {
+                    'ngrok-skip-browser-warning': 'true'
+                }
             });
         }
     } catch (error) {
@@ -1446,10 +1469,14 @@ async function fetchUserInfo(userId) {
     if (!userId) {
         console.warn('fetchUserInfo called without userId');
         return null;
-    }
-    console.log('Fetching user info for user ID:', userId);
+    } console.log('Fetching user info for user ID:', userId);
     try {
-        const response = await fetch(`${API_BASE_URL}/user/profile?user_id=${encodeURIComponent(userId)}`);
+        const apiBaseUrl = await getApiBaseUrl();
+        const response = await fetch(`${apiBaseUrl}/user/profile?user_id=${encodeURIComponent(userId)}`, {
+            headers: {
+                'ngrok-skip-browser-warning': 'true'
+            }
+        });
         if (!response.ok) {
             const errorText = await response.text();
             console.error(`Failed to fetch user profile for ${userId}. Status: ${response.status}. Body: ${errorText}`);

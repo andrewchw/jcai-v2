@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JIRA Extension - Ngrok Integration Test</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #0052CC;
+            border-bottom: 3px solid #0052CC;
+            padding-bottom: 10px;
+        }
+
+        h2 {
+            color: #333;
+            margin-top: 30px;
+        }
+
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background: #fafafa;
+        }
+
+        .step {
+            margin: 10px 0;
+            padding: 10px;
+            background: white;
+            border-left: 4px solid #0052CC;
+            border-radius: 4px;
+        }
+
+        .critical {
+            border-left-color: #FF5630;
+            background-color: #FFF4F3;
+        }
+
+        .success {
+            color: #00875A;
+            font-weight: bold;
+        }
+
+        .warning {
+            color: #FF8B00;
+            font-weight: bold;
+        }
+
+        .error {
+            color: #DE350B;
+            font-weight: bold;
+        }
+
+        .code {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            margin: 10px 0;
+        }
+
+        .ngrok-url {
+            background: #E3FCEF;
+            border: 2px solid #00875A;
+            padding: 10px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-weight: bold;
+            color: #00875A;
+            text-align: center;
+            margin: 15px 0;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-ok {
+            background-color: #00875A;
+        }
+
+        .status-warning {
+            background-color: #FF8B00;
+        }
+
+        .status-error {
+            background-color: #DE350B;
+        }
+
+        .test-button {
+            background: #0052CC;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+
+        .test-button:hover {
+            background: #0065FF;
+        }
+
+        .test-output {
+            background: #000;
+            color: #00FF00;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: monospace;
+            max-height: 300px;
+            overflow-y: auto;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🌐 JIRA Extension - Ngrok Integration Test</h1>
+
+        <div class="ngrok-url">
+            📡 Testing ngrok URL: https://39fb-203-145-94-95.ngrok-free.app
+        </div>
+
+        <div class="test-section">
+            <h2>📋 Integration Test Checklist</h2>
+            <p>This test verifies that the JIRA extension properly connects to the Python server through ngrok instead
+                of localhost.</p>
+
+            <div class="step">
+                <h3><span class="status-indicator status-ok"></span>1. Server URL Configuration</h3>
+                <p>✅ <strong>background.js:</strong> API_BASE_URL updated to ngrok URL</p>
+                <p>✅ <strong>sidebar.js:</strong> Default serverUrl updated to ngrok URL</p>
+                <p>✅ <strong>chat-handler.js:</strong> baseUrl updated to ngrok URL</p>
+                <p>✅ <strong>sidebar.html:</strong> Default input value updated to ngrok URL</p>
+            </div>
+
+            <div class="step">
+                <h3><span class="status-indicator status-ok"></span>2. Server CORS Configuration</h3>
+                <p>✅ <strong>Python server:</strong> CORS configured to allow all origins (*)</p>
+                <p>✅ <strong>Ngrok compatibility:</strong> Server accepts requests from ngrok domain</p>
+            </div>
+
+            <div class="step critical">
+                <h3><span class="status-indicator status-warning"></span>3. Manual Testing Required</h3>
+                <p><strong>⚠️ IMPORTANT:</strong> The following tests require manual verification in the browser
+                    extension.</p>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>🔄 Automated Server Tests</h2>
+            <button class="test-button" onclick="testServerHealth()">Test Server Health</button>
+            <button class="test-button" onclick="testOAuthEndpoints()">Test OAuth Endpoints</button>
+            <button class="test-button" onclick="testJiraEndpoints()">Test Jira Endpoints</button>
+            <button class="test-button" onclick="clearTestOutput()">Clear Output</button>
+
+            <div id="test-output" class="test-output">
+                Ready to run tests...
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>🧪 Manual Extension Tests</h2>
+
+            <div class="step critical">
+                <h3>Step 1: Reload Extension</h3>
+                <p>1. Go to <code>edge://extensions/</code></p>
+                <p>2. Find "JIRA Chatbot Assistant" extension</p>
+                <p>3. Click the <strong>reload button</strong> to reload the extension</p>
+                <p class="warning">⚠️ This ensures the extension picks up the new ngrok URL</p>
+            </div>
+
+            <div class="step">
+                <h3>Step 2: Test Connection Status</h3>
+                <p>1. Click the JIRA extension icon to open the sidebar</p>
+                <p>2. Check the connection status at the top</p>
+                <p>3. Should show <span class="success">"Connected"</span> instead of localhost</p>
+            </div>
+
+            <div class="step critical">
+                <h3>Step 3: Test Login Flow (CRITICAL)</h3>
+                <p>1. In the extension sidebar, go to "Settings" tab</p>
+                <p>2. Verify the Server URL field shows the ngrok URL</p>
+                <p>3. Click <strong>"Login to JIRA"</strong></p>
+                <p>4. Should open OAuth flow using ngrok URL instead of localhost</p>
+                <p class="success">✅ EXPECTED: OAuth popup opens with ngrok URL in address bar</p>
+            </div>
+
+            <div class="step">
+                <h3>Step 4: Test Chat Functionality</h3>
+                <p>1. After successful login, go to "Chat" tab</p>
+                <p>2. Try sending a message like "Hello"</p>
+                <p>3. Chat should communicate through ngrok URL</p>
+                <p class="success">✅ EXPECTED: Chat works without localhost errors</p>
+            </div>
+
+            <div class="step">
+                <h3>Step 5: Test Tasks Loading</h3>
+                <p>1. Go to "Tasks" tab</p>
+                <p>2. Tasks should load from Jira through ngrok</p>
+                <p class="success">✅ EXPECTED: Tasks load successfully via ngrok</p>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>🔍 Troubleshooting Guide</h2>
+
+            <div class="step">
+                <h3>❌ If Connection Fails:</h3>
+                <ul>
+                    <li>Check that ngrok tunnel is still active</li>
+                    <li>Verify Python server is running</li>
+                    <li>Restart ngrok tunnel if necessary</li>
+                    <li>Update ngrok URL in extension files if changed</li>
+                </ul>
+            </div>
+
+            <div class="step">
+                <h3>❌ If OAuth Fails:</h3>
+                <ul>
+                    <li>Check that Atlassian Developer Console callback URL is updated to ngrok</li>
+                    <li>Verify CORS headers are properly configured</li>
+                    <li>Check browser console for specific error messages</li>
+                </ul>
+            </div>
+
+            <div class="step">
+                <h3>✅ Success Indicators:</h3>
+                <ul>
+                    <li>Extension shows "Connected" status</li>
+                    <li>OAuth popup opens with ngrok URL</li>
+                    <li>No localhost references in browser network tab</li>
+                    <li>All features work as expected</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const NGROK_URL = 'https://39fb-203-145-94-95.ngrok-free.app';
+        let testLog = [];
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${type.toUpperCase()}: ${message}`;
+            testLog.push(logEntry);
+
+            const output = document.getElementById('test-output');
+            output.textContent = testLog.slice(-20).join('\n'); // Show last 20 entries
+            output.scrollTop = output.scrollHeight;
+        } async function testServerHealth() {
+            log('Testing server health endpoint...', 'info');
+
+            try {
+                const response = await fetch(`${NGROK_URL}/api/health`, {
+                    headers: {
+                        'ngrok-skip-browser-warning': 'true'
+                    }
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    log('✅ Server health check PASSED', 'success');
+                    log(`Server version: ${data.version}`, 'info');
+                    log(`Multi-user enabled: ${data.multi_user?.enabled}`, 'info');
+                    log(`Database type: ${data.database?.type}`, 'info');
+                } else {
+                    log('❌ Server health check FAILED', 'error');
+                    log(`Status: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                log('❌ Network error connecting to server', 'error');
+                log(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testOAuthEndpoints() {
+            log('Testing OAuth endpoints...', 'info');
+
+            const endpoints = [
+                '/api/auth/oauth/v2/login',
+                '/api/auth/oauth/v2/callback'
+            ];
+
+            for (const endpoint of endpoints) {
+                try {
+                    log(`Testing ${endpoint}...`, 'info');
+                    const response = await fetch(`${NGROK_URL}${endpoint}?user_id=test-user`, {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/json',
+                            'ngrok-skip-browser-warning': 'true'
+                        }
+                    });
+
+                    if (response.ok || response.status === 400) {
+                        // 400 is expected for incomplete OAuth requests
+                        log(`✅ ${endpoint} - endpoint accessible`, 'success');
+                    } else {
+                        log(`⚠️ ${endpoint} - unexpected status: ${response.status}`, 'warning');
+                    }
+                } catch (error) {
+                    log(`❌ ${endpoint} - error: ${error.message}`, 'error');
+                }
+            }
+        }
+
+        async function testJiraEndpoints() {
+            log('Testing Jira endpoints (without auth)...', 'info');
+
+            const endpoints = [
+                '/api/jira/v2/projects',
+                '/api/jira/v2/issues'
+            ];
+
+            for (const endpoint of endpoints) {
+                try {
+                    log(`Testing ${endpoint}...`, 'info');
+                    const response = await fetch(`${NGROK_URL}${endpoint}?user_id=test-user`, {
+                        headers: {
+                            'ngrok-skip-browser-warning': 'true'
+                        }
+                    });
+
+                    if (response.status === 401 || response.status === 403) {
+                        log(`✅ ${endpoint} - endpoint accessible (auth required)`, 'success');
+                    } else if (response.ok) {
+                        log(`✅ ${endpoint} - endpoint accessible`, 'success');
+                    } else {
+                        log(`⚠️ ${endpoint} - status: ${response.status}`, 'warning');
+                    }
+                } catch (error) {
+                    log(`❌ ${endpoint} - error: ${error.message}`, 'error');
+                }
+            }
+        }
+
+        function clearTestOutput() {
+            testLog = [];
+            document.getElementById('test-output').textContent = 'Test output cleared...';
+        }
+
+        // Auto-run health check on page load
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                testServerHealth();
+            }, 1000);
+        });
+    </script>
+</body>
+
+</html>

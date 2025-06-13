@@ -6,11 +6,9 @@
 const elements = {
     // Tabs
     tabButtons: document.querySelectorAll('.tab-button'),
-    tabContents: document.querySelectorAll('.tab-content'),
-
-    // Chat
+    tabContents: document.querySelectorAll('.tab-content'),    // Chat
     messagesContainer: document.getElementById('messages-container'),
-    userInput: document.getElementById('user-input'),
+    chatInput: document.getElementById('chat-input'), // Updated to match ChatHandler
     sendButton: document.getElementById('send-button'),
     clearButton: document.getElementById('clear-button'),
     helpButton: document.getElementById('help-button'),// Tasks
@@ -46,7 +44,7 @@ let port;
 
 // App state
 const state = {
-    serverUrl: 'http://localhost:8000',
+    serverUrl: 'https://67fa-203-145-94-95.ngrok-free.app',
     isAuthenticated: false,
     serverConnected: false,
     userId: null, // Add user ID to state for API requests    projects: [],
@@ -135,10 +133,11 @@ function initialize() {
             // Connect to background script after checking storage
             connectToBackground();
         });
-    });
-
-    // Display initial connection status
+    });    // Display initial connection status
     updateConnectionStatus(false, 'Initializing...');
+
+    // Initialize ChatHandler integration
+    initializeChatHandler();
 }
 
 /**
@@ -271,13 +270,13 @@ function setupEventListeners() {
     elements.tabButtons.forEach(button => {
         button.addEventListener('click', () => switchTab(button.id.replace('tab-', '')));
     });    // Chat input
-    elements.userInput.addEventListener('keydown', async (e) => {
+    elements.chatInput.addEventListener('keydown', async (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            await sendMessage();
+            await sendMessageWithChatHandler();
         }
     }); elements.sendButton.addEventListener('click', async () => {
-        await sendMessage();
+        await sendMessageWithChatHandler();
     });
     elements.clearButton.addEventListener('click', clearChat);
     elements.helpButton.addEventListener('click', showHelpMessage);// Filter changes
@@ -349,11 +348,12 @@ async function saveSettings() {
  */
 async function checkServerConnectivity() {
     try {
-        updateConnectionStatus(false, 'Connecting...');
-
-        const response = await fetch(`${state.serverUrl}/api/health`, {
+        updateConnectionStatus(false, 'Connecting...'); const response = await fetch(`${state.serverUrl}/api/health`, {
             method: 'GET',
-            headers: { 'Accept': 'application/json' },
+            headers: {
+                'Accept': 'application/json',
+                'ngrok-skip-browser-warning': 'true'
+            },
             cache: 'no-cache'
         });
 
@@ -1054,14 +1054,14 @@ function switchTab(tabName) {
  * Send a chat message
  */
 async function sendMessage() {
-    const message = elements.userInput.value.trim();
+    const message = elements.chatInput.value.trim();
     if (!message) return;
 
     // Add message to chat
     addMessage(message, 'user');
 
     // Clear input
-    elements.userInput.value = '';
+    elements.chatInput.value = '';
 
     // Check if authenticated first
     if (!state.isAuthenticated || !state.userId) {
@@ -1072,12 +1072,12 @@ async function sendMessage() {
     // Add typing indicator
     const typingIndicator = addMessage('Thinking...', 'system');
 
-    try {
-        // Send message to the new chat API
+    try {        // Send message to the new chat API
         const response = await fetch(`${state.serverUrl}/api/chat/message/${encodeURIComponent(state.userId)}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'ngrok-skip-browser-warning': 'true'
             },
             body: JSON.stringify({
                 text: message
@@ -1224,11 +1224,12 @@ function handleUserIdUpdate(data) {
     if (!data || !data.userId) {
         console.warn('Received invalid user ID update data:', data);
         return;
-    }
-
-    // Store the user ID locally
+    }    // Store the user ID locally
     state.userId = data.userId;
     console.log('Updated local user ID to:', state.userId);
+
+    // Update ChatHandler with new user ID
+    updateChatHandlerUserId();
 
     // We could update UI if needed, but typically this is just for making API requests
     // Add user ID to any relevant data in the footer for debugging
@@ -1391,5 +1392,72 @@ function requestRememberMeStatus() {
         });
     } catch (error) {
         console.error('Error requesting Remember Me status:', error);
+    }
+}
+
+/**
+ * Initialize ChatHandler integration
+ */
+function initializeChatHandler() {
+    // Check if ChatHandler is available
+    if (typeof window.chatHandler === 'undefined') {
+        console.warn('ChatHandler not found - using fallback chat functionality');
+        return;
+    }
+
+    console.log('Integrating with ChatHandler...');
+
+    // Set up ChatHandler with current user ID when available
+    if (state.userId) {
+        window.chatHandler.currentUserId = state.userId;
+    }
+
+    // Override ChatHandler's sendMessage to also work with sidebar state
+    const originalProcessMessage = window.chatHandler.processMessage.bind(window.chatHandler);
+
+    window.chatHandler.processMessage = async function (message) {
+        // Update user ID if needed
+        if (state.userId && this.currentUserId !== state.userId) {
+            this.currentUserId = state.userId;
+        }
+
+        // If not authenticated, show auth message
+        if (!state.isAuthenticated || !state.userId) {
+            this.addMessage({
+                text: "Please log in to Jira first to use the chatbot features.",
+                sender: 'bot',
+                timestamp: new Date()
+            });
+            return;
+        }
+
+        // Use original processing
+        return await originalProcessMessage(message);
+    };
+
+    // Update ChatHandler when user ID changes
+    updateChatHandlerUserId();
+}
+
+/**
+ * Update ChatHandler with current user ID
+ */
+function updateChatHandlerUserId() {
+    if (typeof window.chatHandler !== 'undefined' && state.userId) {
+        window.chatHandler.currentUserId = state.userId;
+        console.log('Updated ChatHandler user ID:', state.userId);
+    }
+}
+
+/**
+ * Use ChatHandler for enhanced chat if available, fallback to original
+ */
+async function sendMessageWithChatHandler() {
+    if (typeof window.chatHandler !== 'undefined') {
+        // Use ChatHandler's enhanced functionality
+        return await window.chatHandler.handleSendMessage();
+    } else {
+        // Use original sidebar chat functionality
+        return await sendMessage();
     }
 }
