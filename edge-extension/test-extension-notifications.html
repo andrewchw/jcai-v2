@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JCAI Extension Notification Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        .container {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #0066cc;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #f9f9f9;
+        }
+
+        button {
+            background: #0066cc;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+        }
+
+        button:hover {
+            background: #0051a3;
+        }
+
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .extension-status {
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+
+        .extension-available {
+            background: #d4edda;
+            color: #155724;
+            border: 2px solid #28a745;
+        }
+
+        .extension-unavailable {
+            background: #f8d7da;
+            color: #721c24;
+            border: 2px solid #dc3545;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🔔 JCAI Extension Notification Test</h1>
+
+        <div id="extension-status" class="extension-status">
+            🔄 Checking extension status...
+        </div>
+
+        <div class="test-section">
+            <h3>🧪 Extension Communication Tests</h3>
+            <button onclick="testExtensionConnection()">Test Extension Connection</button>
+            <button onclick="testNotificationFromExtension()">Test Notification from Extension</button>
+            <button onclick="clearAllNotifications()">Clear All Notifications</button>
+            <div id="extension-test-status" class="status"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📱 Direct Content Script Tests</h3>
+            <p>These tests work directly with the content script notification system:</p>
+            <button onclick="testToastNotification()">Test Toast Notification</button>
+            <button onclick="testCustomNotification()">Test Custom Notification</button>
+            <button onclick="testJiraNotification()">Test Jira Notification</button>
+            <button onclick="testInlineNotification()">Test Inline Notification</button>
+            <div id="content-test-status" class="status"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🔄 Background Script Tests</h3>
+            <button onclick="enableNotifications()">Enable Notifications</button>
+            <button onclick="disableNotifications()">Disable Notifications</button>
+            <button onclick="sendTestNotification()">Send Test Notification</button>
+            <div id="background-test-status" class="status"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🎯 Integration Workflow Test</h3>
+            <button onclick="testCompleteWorkflow()">Test Complete Workflow</button>
+            <div id="workflow-status" class="status"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📊 Extension Information</h3>
+            <div id="extension-info" class="info status">
+                Extension information will appear here...
+            </div>
+        </div>
+    </div>
+    <script>
+        // Check if extension is available
+        function checkExtensionStatus() {
+            const statusDiv = document.getElementById('extension-status');
+
+            // Check for the extension bridge that the content script creates
+            if (typeof window.jcaiExtensionBridge !== 'undefined' && window.jcaiExtensionBridge.isExtensionAvailable) {
+                statusDiv.textContent = '✅ JCAI Extension is available and ready!';
+                statusDiv.className = 'extension-status extension-available';
+
+                // Get extension info from bridge
+                const infoDiv = document.getElementById('extension-info');
+                infoDiv.innerHTML = `
+                    <strong>Extension ID:</strong> ${window.jcaiExtensionBridge.extensionId}<br>
+                    <strong>Extension Version:</strong> ${window.jcaiExtensionBridge.version}<br>
+                    <strong>Extension Name:</strong> ${window.jcaiExtensionBridge.name}<br>
+                    <strong>Bridge Status:</strong> Active and ready for testing
+                `;
+            } else {
+                statusDiv.textContent = '❌ JCAI Extension not detected. Please install and enable the extension.';
+                statusDiv.className = 'extension-status extension-unavailable';
+
+                // Try again in 2 seconds (content script might still be loading)
+                setTimeout(checkExtensionStatus, 2000);
+            }
+        }
+
+        // Test extension connection
+        function testExtensionConnection() {
+            const statusDiv = document.getElementById('extension-test-status');
+            statusDiv.textContent = '🔄 Testing extension connection...';
+            statusDiv.className = 'status info';
+
+            if (typeof window.jcaiExtensionBridge === 'undefined') {
+                statusDiv.textContent = '❌ Extension bridge not available';
+                statusDiv.className = 'status error';
+                return;
+            }
+
+            window.jcaiExtensionBridge.sendMessageToBackground({ type: 'ping' }).then((response) => {
+                if (response.error) {
+                    statusDiv.textContent = `❌ Extension connection failed: ${response.error}`;
+                    statusDiv.className = 'status error';
+                } else {
+                    statusDiv.textContent = '✅ Extension connection successful!';
+                    statusDiv.className = 'status success';
+                }
+            });
+        }
+
+        // Test notification from extension
+        function testNotificationFromExtension() {
+            const statusDiv = document.getElementById('extension-test-status');
+            statusDiv.textContent = '🔄 Requesting test notification from extension...';
+            statusDiv.className = 'status info';
+
+            if (typeof window.jcaiExtensionBridge === 'undefined') {
+                statusDiv.textContent = '❌ Extension bridge not available';
+                statusDiv.className = 'status error';
+                return;
+            }
+
+            window.jcaiExtensionBridge.sendMessageToBackground({ type: 'test-notification' }).then((response) => {
+                if (response.error) {
+                    statusDiv.textContent = `❌ Test notification failed: ${response.error}`;
+                    statusDiv.className = 'status error';
+                } else {
+                    statusDiv.textContent = '✅ Test notification sent! Check for notification on page.';
+                    statusDiv.className = 'status success';
+                }
+            });
+        }
+
+        // Clear all notifications
+        function clearAllNotifications() {
+            const statusDiv = document.getElementById('extension-test-status');
+
+            if (window.jcaiExtensionBridge) {
+                window.jcaiExtensionBridge.clearNotifications();
+                statusDiv.textContent = '🧹 All notifications cleared';
+                statusDiv.className = 'status info';
+            } else {
+                statusDiv.textContent = '❌ Extension bridge not available';
+                statusDiv.className = 'status error';
+            }
+        }
+
+        // Direct content script tests (using the bridge)
+        function testToastNotification() {
+            const statusDiv = document.getElementById('content-test-status');
+            statusDiv.textContent = '🧪 Testing direct toast notification...';
+            statusDiv.className = 'status info';
+
+            if (window.jcaiExtensionBridge) {
+                window.jcaiExtensionBridge.testNotification();
+                statusDiv.textContent = '✅ Direct toast notification triggered';
+                statusDiv.className = 'status success';
+            } else {
+                statusDiv.textContent = '❌ Extension bridge not available (content script not loaded)';
+                statusDiv.className = 'status error';
+            }
+        }
+
+        function testCustomNotification() {
+            const statusDiv = document.getElementById('content-test-status');
+            statusDiv.textContent = '🧪 Testing direct custom notification...';
+            statusDiv.className = 'status info';
+
+            if (window.jcaiExtensionBridge) {
+                window.jcaiExtensionBridge.testCustomNotification();
+                statusDiv.textContent = '✅ Direct custom notification triggered';
+                statusDiv.className = 'status success';
+            } else {
+                statusDiv.textContent = '❌ Extension bridge not available (content script not loaded)';
+                statusDiv.className = 'status error';
+            }
+        }
+
+        function testJiraNotification() {
+            const statusDiv = document.getElementById('content-test-status');
+            statusDiv.textContent = '🧪 Testing direct Jira notification...';
+            statusDiv.className = 'status info';
+
+            if (window.jcaiExtensionBridge) {
+                window.jcaiExtensionBridge.testJiraNotification();
+                statusDiv.textContent = '✅ Direct Jira notification triggered';
+                statusDiv.className = 'status success';
+            } else {
+                statusDiv.textContent = '❌ Extension bridge not available (content script not loaded)';
+                statusDiv.className = 'status error';
+            }
+        }
+
+        function testInlineNotification() {
+            const statusDiv = document.getElementById('content-test-status');
+            statusDiv.textContent = '🧪 Testing direct inline notification...';
+            statusDiv.className = 'status info';
+
+            if (window.jcaiExtensionBridge) {
+                window.jcaiExtensionBridge.testInlineNotification();
+                statusDiv.textContent = '✅ Direct inline notification triggered';
+                statusDiv.className = 'status success';
+            } else {
+                statusDiv.textContent = '❌ Extension bridge not available (content script not loaded)';
+                statusDiv.className = 'status error';
+            }
+        }
+
+        // Background script tests
+        function enableNotifications() {
+            const statusDiv = document.getElementById('background-test-status');
+            statusDiv.textContent = '🔄 Enabling notifications...';
+            statusDiv.className = 'status info';
+
+            if (!window.jcaiExtensionBridge) {
+                statusDiv.textContent = '❌ Extension bridge not available';
+                statusDiv.className = 'status error';
+                return;
+            }
+
+            window.jcaiExtensionBridge.sendMessageToBackground({ type: 'enable-notifications' }).then((response) => {
+                if (response.error) {
+                    statusDiv.textContent = `❌ Enable failed: ${response.error}`;
+                    statusDiv.className = 'status error';
+                } else {
+                    statusDiv.textContent = '✅ Notifications enabled successfully!';
+                    statusDiv.className = 'status success';
+                }
+            });
+        }
+
+        function disableNotifications() {
+            const statusDiv = document.getElementById('background-test-status');
+            statusDiv.textContent = '🔄 Disabling notifications...';
+            statusDiv.className = 'status info';
+
+            if (!window.jcaiExtensionBridge) {
+                statusDiv.textContent = '❌ Extension bridge not available';
+                statusDiv.className = 'status error';
+                return;
+            }
+
+            window.jcaiExtensionBridge.sendMessageToBackground({ type: 'disable-notifications' }).then((response) => {
+                if (response.error) {
+                    statusDiv.textContent = `❌ Disable failed: ${response.error}`;
+                    statusDiv.className = 'status error';
+                } else {
+                    statusDiv.textContent = '✅ Notifications disabled successfully!';
+                    statusDiv.className = 'status success';
+                }
+            });
+        }
+
+        function sendTestNotification() {
+            const statusDiv = document.getElementById('background-test-status');
+            statusDiv.textContent = '🔄 Sending test notification from background...';
+            statusDiv.className = 'status info';
+
+            if (!window.jcaiExtensionBridge) {
+                statusDiv.textContent = '❌ Extension bridge not available';
+                statusDiv.className = 'status error';
+                return;
+            }
+
+            window.jcaiExtensionBridge.sendMessageToBackground({ type: 'send-test-notification' }).then((response) => {
+                if (response.error) {
+                    statusDiv.textContent = `❌ Test failed: ${response.error}`;
+                    statusDiv.className = 'status error';
+                } else {
+                    statusDiv.textContent = '✅ Test notification sent from background script!';
+                    statusDiv.className = 'status success';
+                }
+            });
+        }
+
+        // Complete workflow test
+        function testCompleteWorkflow() {
+            const statusDiv = document.getElementById('workflow-status');
+            statusDiv.textContent = '🔄 Testing complete notification workflow...';
+            statusDiv.className = 'status info';
+
+            let step = 1;
+            const totalSteps = 4;
+
+            function updateStatus(message) {
+                statusDiv.textContent = `Step ${step}/${totalSteps}: ${message}`;
+                step++;
+            }
+
+            // Step 1: Enable notifications
+            updateStatus('Enabling notifications...');
+            chrome.runtime.sendMessage({ type: 'enable-notifications' }, (response) => {
+                setTimeout(() => {
+                    // Step 2: Test extension notification
+                    updateStatus('Testing extension notification...');
+                    chrome.runtime.sendMessage({ type: 'test-notification' }, () => {
+                        setTimeout(() => {
+                            // Step 3: Test direct notification
+                            updateStatus('Testing direct notification...');
+                            if (window.jcaiNotifications) {
+                                window.jcaiNotifications.showToastNotification('info', '🎯 Workflow Test', 'Step 3: Direct notification working!');
+                            }
+
+                            setTimeout(() => {
+                                // Step 4: Complete
+                                statusDiv.textContent = '✅ Complete workflow test finished! All systems working.';
+                                statusDiv.className = 'status success';
+                            }, 2000);
+                        }, 2000);
+                    });
+                }, 2000);
+            });
+        }
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', function () {
+            console.log('🧪 JCAI Extension Notification Test Page loaded');
+            checkExtensionStatus();
+
+            // Show welcome message
+            setTimeout(() => {
+                if (window.jcaiNotifications && window.jcaiNotifications.showToastNotification) {
+                    window.jcaiNotifications.showToastNotification('info', '🎉 Test Page Ready', 'JCAI extension notification test page is loaded and ready!');
+                }
+            }, 1000);
+        });
+    </script>
+</body>
+
+</html>

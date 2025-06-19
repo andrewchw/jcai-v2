@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Page JavaScript Validator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+
+        .validator-section {
+            background: white;
+            margin: 15px 0;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .test-button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .test-button:hover {
+            background-color: #0056b3;
+        }
+
+        .result {
+            margin: 10px 0;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+        }
+
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .function-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 10px;
+            margin: 15px 0;
+        }
+
+        .function-item {
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+
+        .function-available {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .function-missing {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        h2 {
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🔍 Enhanced Page JavaScript Validator</h1>
+    <p>This page validates that all JavaScript functions in the enhanced notification page are properly defined and
+        working.</p>
+
+    <div class="validator-section">
+        <h2>📋 Function Availability Check</h2>
+        <button class="test-button" onclick="validateAllFunctions()">🔍 Check All Functions</button>
+        <button class="test-button" onclick="validateCriticalFunctions()">⚡ Check Critical Functions Only</button>
+        <div id="function-validation-results"></div>
+    </div>
+
+    <div class="validator-section">
+        <h2>🧪 JavaScript Syntax Validation</h2>
+        <button class="test-button" onclick="validatePageSyntax()">🔍 Validate Syntax</button>
+        <div id="syntax-validation-results"></div>
+    </div>
+
+    <div class="validator-section">
+        <h2>🎯 Critical Function Tests</h2>
+        <button class="test-button" onclick="testNotificationFunctions()">🔔 Test Notification Functions</button>
+        <button class="test-button" onclick="testSystemFunctions()">⚙️ Test System Functions</button>
+        <div id="function-test-results"></div>
+    </div>
+
+    <div class="validator-section">
+        <h2>🚨 Error Console Monitor</h2>
+        <button class="test-button" onclick="monitorConsoleErrors()">📊 Monitor Errors</button>
+        <button class="test-button" onclick="clearErrorLog()">🗑️ Clear Log</button>
+        <div id="error-monitor-results"></div>
+    </div>
+
+    <script>
+        // List of all expected functions from the enhanced page
+        const expectedFunctions = [
+            // Status and utility functions
+            'showStatus',
+            'showData',
+
+            // Permission and setup functions
+            'checkNotificationPermission',
+            'showPermissionHelp',
+            'requestNotificationPermission',
+            'requestPermissionAlternative',
+            'openEdgeSettings',
+            'checkAddressBarIcon',
+
+            // Popup blocker detection
+            'detectPopupBlocker',
+            'showPopupBlockerHelp',
+            'requestNotificationPermissionWithPopupCheck',
+
+            // Basic notification functions
+            'testNotificationImmediately',
+            'testBasicNotification',
+            'showBrowserNotification',
+            'testJiraNotification',
+
+            // Server communication
+            'testServerConnection',
+            'createTestNotification',
+            'checkPendingNotifications',
+            'clearNotifications',
+
+            // Custom notification system
+            'showCustomNotification',
+            'hideCustomNotification',
+            'handleNotificationAction',
+            'showPendingToastNotifications',
+            'showToastNotification',
+            'showToastNotificationWithClick',
+            'testInlineNotification',
+
+            // Advanced system functions
+            'requestPermissionWithCustomFallback',
+            'enableCustomNotificationSystem',
+            'stopCustomNotificationSystem',
+            'startCustomNotificationPolling',
+            'testCustomNotificationWorkflow',
+
+            // Debug functions
+            'debugToastTest',
+            'debugConsoleTest',
+            'debugContainerTest'
+        ];
+
+        const criticalFunctions = [
+            'enableCustomNotificationSystem',
+            'showToastNotification',
+            'showCustomNotification',
+            'testInlineNotification',
+            'startCustomNotificationPolling',
+            'stopCustomNotificationSystem'
+        ];
+
+        let errorLog = [];
+        let originalConsoleError = console.error;
+        let monitoring = false;
+
+        function validateAllFunctions() {
+            const results = document.getElementById('function-validation-results');
+            results.innerHTML = '<p>🔍 Checking all functions...</p>';
+
+            let available = [];
+            let missing = [];
+
+            expectedFunctions.forEach(funcName => {
+                try {
+                    if (typeof window[funcName] === 'function') {
+                        available.push(funcName);
+                    } else {
+                        missing.push(funcName);
+                    }
+                } catch (error) {
+                    missing.push(`${funcName} (Error: ${error.message})`);
+                }
+            });
+
+            const successRate = Math.round((available.length / expectedFunctions.length) * 100);
+            const status = missing.length === 0 ? 'success' : (missing.length < 5 ? 'warning' : 'error');
+
+            let resultHTML = `
+                <div class="result ${status}">
+                    <h3>📊 Function Validation Results</h3>
+                    <p><strong>Success Rate: ${successRate}% (${available.length}/${expectedFunctions.length})</strong></p>
+
+                    ${available.length > 0 ? `
+                    <h4>✅ Available Functions (${available.length}):</h4>
+                    <div class="function-list">
+                        ${available.map(func => `<div class="function-item function-available">✅ ${func}</div>`).join('')}
+                    </div>
+                    ` : ''}
+
+                    ${missing.length > 0 ? `
+                    <h4>❌ Missing Functions (${missing.length}):</h4>
+                    <div class="function-list">
+                        ${missing.map(func => `<div class="function-item function-missing">❌ ${func}</div>`).join('')}
+                    </div>
+                    ` : ''}
+                </div>
+            `;
+
+            results.innerHTML = resultHTML;
+        }
+
+        function validateCriticalFunctions() {
+            const results = document.getElementById('function-validation-results');
+            results.innerHTML = '<p>⚡ Checking critical functions...</p>';
+
+            let available = [];
+            let missing = [];
+
+            criticalFunctions.forEach(funcName => {
+                try {
+                    if (typeof window[funcName] === 'function') {
+                        available.push(funcName);
+                    } else {
+                        missing.push(funcName);
+                    }
+                } catch (error) {
+                    missing.push(`${funcName} (Error: ${error.message})`);
+                }
+            });
+
+            const status = missing.length === 0 ? 'success' : 'error';
+
+            let resultHTML = `
+                <div class="result ${status}">
+                    <h3>⚡ Critical Function Check</h3>
+                    <p><strong>Status: ${missing.length === 0 ? 'ALL CRITICAL FUNCTIONS AVAILABLE' : 'CRITICAL FUNCTIONS MISSING'}</strong></p>
+
+                    ${available.length > 0 ? `
+                    <h4>✅ Available Critical Functions:</h4>
+                    <div class="function-list">
+                        ${available.map(func => `<div class="function-item function-available">✅ ${func}</div>`).join('')}
+                    </div>
+                    ` : ''}
+
+                    ${missing.length > 0 ? `
+                    <h4>❌ Missing Critical Functions:</h4>
+                    <div class="function-list">
+                        ${missing.map(func => `<div class="function-item function-missing">❌ ${func}</div>`).join('')}
+                    </div>
+                    ` : ''}
+                </div>
+            `;
+
+            results.innerHTML = resultHTML;
+        }
+
+        function validatePageSyntax() {
+            const results = document.getElementById('syntax-validation-results');
+            results.innerHTML = '<p>🔍 Validating JavaScript syntax...</p>';
+
+            // Test if we can access the enhanced page
+            try {
+                fetch('/test-browser-notifications-enhanced.html')
+                    .then(response => response.text())
+                    .then(html => {
+                        // Extract JavaScript from the page
+                        const scriptMatches = html.match(/<script[^>]*>([\s\S]*?)<\/script>/gi);
+                        let syntaxIssues = [];
+                        let totalScripts = 0;
+
+                        if (scriptMatches) {
+                            totalScripts = scriptMatches.length;
+
+                            scriptMatches.forEach((script, index) => {
+                                const scriptContent = script.replace(/<\/?script[^>]*>/gi, '');
+                                try {
+                                    // Try to create a function with the script content
+                                    new Function(scriptContent);
+                                } catch (error) {
+                                    syntaxIssues.push(`Script ${index + 1}: ${error.message}`);
+                                }
+                            });
+                        }
+
+                        const status = syntaxIssues.length === 0 ? 'success' : 'error';
+
+                        results.innerHTML = `
+                            <div class="result ${status}">
+                                <h3>🔍 JavaScript Syntax Validation</h3>
+                                <p><strong>Scripts Found: ${totalScripts}</strong></p>
+                                <p><strong>Syntax Issues: ${syntaxIssues.length}</strong></p>
+
+                                ${syntaxIssues.length === 0 ?
+                                '<p>✅ No syntax errors detected!</p>' :
+                                `<h4>❌ Syntax Issues Found:</h4>
+                                     <ul>${syntaxIssues.map(issue => `<li>${issue}</li>`).join('')}</ul>`
+                            }
+                            </div>
+                        `;
+                    })
+                    .catch(error => {
+                        results.innerHTML = `
+                            <div class="result error">
+                                <h3>❌ Syntax Validation Failed</h3>
+                                <p>Could not load enhanced page for validation: ${error.message}</p>
+                            </div>
+                        `;
+                    });
+            } catch (error) {
+                results.innerHTML = `
+                    <div class="result error">
+                        <h3>❌ Validation Error</h3>
+                        <p>Error during syntax validation: ${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        function testNotificationFunctions() {
+            const results = document.getElementById('function-test-results');
+            results.innerHTML = '<p>🔔 Testing notification functions...</p>';
+
+            let tests = [];
+
+            // Test showToastNotification
+            try {
+                if (typeof window.showToastNotification === 'function') {
+                    tests.push('✅ showToastNotification: Available and callable');
+                } else {
+                    tests.push('❌ showToastNotification: Not available');
+                }
+            } catch (error) {
+                tests.push(`❌ showToastNotification: Error - ${error.message}`);
+            }
+
+            // Test showCustomNotification
+            try {
+                if (typeof window.showCustomNotification === 'function') {
+                    tests.push('✅ showCustomNotification: Available and callable');
+                } else {
+                    tests.push('❌ showCustomNotification: Not available');
+                }
+            } catch (error) {
+                tests.push(`❌ showCustomNotification: Error - ${error.message}`);
+            }
+
+            // Test enableCustomNotificationSystem
+            try {
+                if (typeof window.enableCustomNotificationSystem === 'function') {
+                    tests.push('✅ enableCustomNotificationSystem: Available and callable');
+                } else {
+                    tests.push('❌ enableCustomNotificationSystem: Not available');
+                }
+            } catch (error) {
+                tests.push(`❌ enableCustomNotificationSystem: Error - ${error.message}`);
+            }
+
+            const hasErrors = tests.some(test => test.includes('❌'));
+            const status = hasErrors ? 'error' : 'success';
+
+            results.innerHTML = `
+                <div class="result ${status}">
+                    <h3>🔔 Notification Function Tests</h3>
+                    ${tests.map(test => `<div>${test}</div>`).join('')}
+                </div>
+            `;
+        }
+
+        function testSystemFunctions() {
+            const results = document.getElementById('function-test-results');
+            results.innerHTML = '<p>⚙️ Testing system functions...</p>';
+
+            let tests = [];
+
+            const systemFunctions = [
+                'startCustomNotificationPolling',
+                'stopCustomNotificationSystem',
+                'testCustomNotificationWorkflow',
+                'showStatus'
+            ];
+
+            systemFunctions.forEach(func => {
+                try {
+                    if (typeof window[func] === 'function') {
+                        tests.push(`✅ ${func}: Available`);
+                    } else {
+                        tests.push(`❌ ${func}: Not available`);
+                    }
+                } catch (error) {
+                    tests.push(`❌ ${func}: Error - ${error.message}`);
+                }
+            });
+
+            const hasErrors = tests.some(test => test.includes('❌'));
+            const status = hasErrors ? 'error' : 'success';
+
+            results.innerHTML = `
+                <div class="result ${status}">
+                    <h3>⚙️ System Function Tests</h3>
+                    ${tests.map(test => `<div>${test}</div>`).join('')}
+                </div>
+            `;
+        }
+
+        function monitorConsoleErrors() {
+            const results = document.getElementById('error-monitor-results');
+
+            if (!monitoring) {
+                monitoring = true;
+                console.error = function (...args) {
+                    errorLog.push({
+                        timestamp: new Date().toLocaleTimeString(),
+                        message: args.join(' ')
+                    });
+                    originalConsoleError.apply(console, args);
+                    updateErrorDisplay();
+                };
+
+                results.innerHTML = `
+                    <div class="result info">
+                        <h3>📊 Error Monitoring Active</h3>
+                        <p>Monitoring console errors... Interact with the enhanced page to capture any errors.</p>
+                        <div id="live-errors"></div>
+                    </div>
+                `;
+            } else {
+                updateErrorDisplay();
+            }
+        }
+
+        function updateErrorDisplay() {
+            const liveErrors = document.getElementById('live-errors');
+            if (liveErrors) {
+                if (errorLog.length === 0) {
+                    liveErrors.innerHTML = '<p>✅ No errors detected yet.</p>';
+                } else {
+                    liveErrors.innerHTML = `
+                        <h4>🚨 Captured Errors (${errorLog.length}):</h4>
+                        <div style="max-height: 300px; overflow-y: auto;">
+                            ${errorLog.slice(-10).map(error => `
+                                <div style="border-bottom: 1px solid #ddd; padding: 5px 0;">
+                                    <strong>${error.timestamp}:</strong> ${error.message}
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                }
+            }
+        }
+
+        function clearErrorLog() {
+            errorLog = [];
+            const results = document.getElementById('error-monitor-results');
+            results.innerHTML = `
+                <div class="result success">
+                    <h3>🗑️ Error Log Cleared</h3>
+                    <p>Error log has been cleared. Click "Monitor Errors" to start monitoring again.</p>
+                </div>
+            `;
+            monitoring = false;
+            console.error = originalConsoleError;
+        }
+
+        // Auto-run critical function check on page load
+        document.addEventListener('DOMContentLoaded', function () {
+            console.log('🔍 JavaScript Validator Ready');
+            setTimeout(() => {
+                validateCriticalFunctions();
+            }, 1000);
+        });
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Basic JavaScript Test</title>
+</head>
+
+<body>
+    <h1>Basic JavaScript Test</h1>
+    <button onclick="testFunction()">Click Me - Basic Test</button>
+    <button onclick="alert('Direct alert works!')">Direct Alert Test</button>
+    <div id="result"></div>
+
+    <script>
+        console.log('Script is loading...');
+
+        function testFunction() {
+            console.log('Function called!');
+            document.getElementById('result').innerHTML = 'JavaScript is working!';
+            alert('Function executed successfully!');
+        }
+
+        // Test if script loads
+        document.addEventListener('DOMContentLoaded', function () {
+            console.log('DOM loaded, script is working');
+            document.getElementById('result').innerHTML = 'Script loaded successfully at ' + new Date();
+        });
+    </script>
+</body>
+
+</html>

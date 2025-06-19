@@ -1,4 +1,4 @@
-from app.api.endpoints import chat, debug, jira, jira_multi, oauth, oauth_multi
+from app.api.endpoints import chat, debug, jira, jira_multi, oauth, oauth_multi, notifications
 from app.api.user_profile import \
     user_profile_router  # Import the new user profile router
 from fastapi import APIRouter
@@ -24,6 +24,9 @@ api_router.include_router(oauth_multi.router, prefix="/auth", tags=["oauth-multi
 api_router.include_router(
     user_profile_router
 )  # Default prefix '/user' is in user_profile.py
+
+# Include notification endpoints
+api_router.include_router(notifications.router, tags=["notifications"])
 
 # Include debug endpoints
 api_router.include_router(debug.router, prefix="/debug", tags=["debug"])

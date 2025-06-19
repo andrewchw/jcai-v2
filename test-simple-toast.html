@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Toast Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        .container {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        button {
+            background: #0066cc;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 10px;
+        }
+
+        button:hover {
+            background: #0052a3;
+        }
+
+        /* Toast notification styles */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10001;
+            width: 350px;
+        }
+
+        .toast {
+            background: #333;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            transform: translateX(400px);
+            transition: transform 0.3s ease-in-out;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .toast.show {
+            transform: translateX(0);
+        }
+
+        .toast.success {
+            background: #28a745;
+        }
+
+        .toast.error {
+            background: #dc3545;
+        }
+
+        .toast.warning {
+            background: #ffc107;
+            color: #333;
+        }
+
+        .toast.info {
+            background: #17a2b8;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🍞 Simple Toast Test</h1>
+
+        <button onclick="testToast()">Show Toast</button>
+        <button onclick="testSuccessToast()">Show Success Toast</button>
+        <button onclick="testErrorToast()">Show Error Toast</button>
+        <button onclick="testWarningToast()">Show Warning Toast</button>
+
+        <div id="status" style="margin-top: 20px; padding: 10px; border-radius: 4px; display: none;"></div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script>
+        function showToast(type = 'info', title = 'Notification', message = 'This is a toast notification!') {
+            console.log('🍞 Creating toast:', { type, title, message });
+
+            const container = document.getElementById('toast-container');
+            console.log('📦 Container found:', container);
+
+            if (!container) {
+                console.error('❌ Toast container not found!');
+                return;
+            }
+
+            // Create toast element
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `
+                <div style="font-weight: bold; margin-bottom: 8px;">${title}</div>
+                <div style="font-size: 14px;">${message}</div>
+            `;
+
+            console.log('🎯 Toast element created:', toast);
+
+            // Add to container
+            container.appendChild(toast);
+            console.log('📌 Toast added to container');
+
+            // Show with animation
+            setTimeout(() => {
+                toast.classList.add('show');
+                console.log('✨ Toast show class added');
+            }, 100);
+
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                toast.classList.remove('show');
+                console.log('🔄 Toast hide started');
+                setTimeout(() => {
+                    if (container.contains(toast)) {
+                        container.removeChild(toast);
+                        console.log('🗑️ Toast removed from DOM');
+                    }
+                }, 300);
+            }, 5000);
+
+            // Update status
+            document.getElementById('status').style.display = 'block';
+            document.getElementById('status').innerHTML = `✅ ${type.toUpperCase()} Toast created! Check top-right corner.`;
+            document.getElementById('status').style.background = '#d4edda';
+            document.getElementById('status').style.color = '#155724';
+        }
+
+        function testToast() {
+            showToast('info', '🔵 Info Toast', 'This is a basic info toast notification!');
+        }
+
+        function testSuccessToast() {
+            showToast('success', '✅ Success Toast', 'This is a success toast notification!');
+        }
+
+        function testErrorToast() {
+            showToast('error', '❌ Error Toast', 'This is an error toast notification!');
+        }
+
+        function testWarningToast() {
+            showToast('warning', '⚠️ Warning Toast', 'This is a warning toast notification!');
+        }
+
+        // Test on page load
+        window.addEventListener('load', () => {
+            console.log('🚀 Page loaded, testing toast in 2 seconds...');
+            setTimeout(() => {
+                showToast('info', '🎉 Auto Test', 'Page loaded successfully! Toast system is working.');
+            }, 2000);
+        });
+    </script>
+</body>
+
+</html>

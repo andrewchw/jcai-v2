@@ -1,4 +1,3 @@
-# filepath: c:\Users\deencat\Documents\jcai-v2\python-server\app\main.py
 """Main FastAPI application for the Jira Chatbot API."""
 
 import os
@@ -106,9 +105,7 @@ async def startup_event():
 
     data_dir = Path(__file__).parent.parent / "data"
     data_dir.mkdir(exist_ok=True)
-    logger.info(f"Data directory: {data_dir}")
-
-    # Initialize database
+    logger.info(f"Data directory: {data_dir}")  # Initialize database
     init_db()
     logger.info("Database initialized successfully")
 
@@ -127,9 +124,8 @@ async def startup_event():
     )
     logger.info(
         f"Multi-user mode: {'enabled' if multi_user_enabled else 'disabled'}"
-    )
+    )  # Initialize multi-user token refresh service
 
-    # Initialize multi-user token refresh service
     if multi_user_enabled:
         try:
             from app.services.multi_user_oauth_token_service import \
@@ -159,8 +155,7 @@ async def startup_event():
                         logger.warning(
                             f"Token warning for user {event.user_id}: {event.message}"
                         )
-
-                token_service.add_event_handler(log_token_event)
+                        token_service.add_event_handler(log_token_event)
                 token_service.start()
                 logger.info("Multi-user token refresh service started successfully")
             else:
@@ -273,7 +268,7 @@ async def health_check(user_id: Optional[str] = None, db: Session = Depends(get_
                     "authenticated" if is_authenticated else "unauthenticated"
                 )
                 debug_info["multi_user"] = True
-        else:
+            #else:
             # Legacy single-user check
             from app.services.jira_service import jira_service
             if jira_service and hasattr(jira_service, "get_oauth2_token"):
@@ -339,7 +334,6 @@ async def root():
             "Multi-user authentication",
             "Token encryption",
             "Database storage",
-            "Notification system",
         ],
         "docs_url": "/docs",
         "openapi_url": "/openapi.json",
@@ -374,8 +368,7 @@ async def token_dashboard():
 # Alternative token dashboard endpoint with absolute path
 @app.get("/dashboard/token2")
 async def token_dashboard_alt():
-    """Alternative token dashboard endpoint with absolute path."""
-    # Use an absolute path as a fallback
+    """Alternative token dashboard endpoint with absolute path."""  # Use an absolute path as a fallback
     script_dir = pathlib.Path(__file__).parent.resolve()
     project_root = script_dir.parent
 

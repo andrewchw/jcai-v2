@@ -116,21 +116,28 @@ This project involves developing a Microsoft Edge extension with a chatbot inter
 - **Status: READY TO BEGIN - All Phase 1 dependencies completed**
 
 #### Phase 2 Tasks Ready for Implementation
-1. **File Upload Capability for Evidence Attachment (P0)** - NEXT PRIORITY
+1. **Basic Notification System (P0)** - IMMEDIATE PRIORITY
+   - Implement APScheduler for polling due tasks from Jira
+   - Create browser notification system with action buttons
+   - Add reminder preferences integration with existing UI
+   - Implement daily due date checking and overdue task detection
+   - Add basic notification delivery and user interaction handling
+
+2. **File Upload Capability for Evidence Attachment (P1)** - HIGH PRIORITY
    - Implement drag-and-drop interface in extension sidebar
    - Create thumbnail grid for uploaded evidence preview
    - Add MCP server integration for Jira attachments
    - Support common file types (images, PDFs, documents)
    - Implement file size validation and compression
 
-2. **Advanced Query Functionality (P1)** - HIGH PRIORITY
+3. **Advanced Query Functionality (P1)** - HIGH PRIORITY
    - Implement multi-criteria task queries via natural language
    - Create query result caching for improved performance
    - Add support for date range, assignee, and status filters
    - Enable complex Boolean queries ("Show me overdue tasks assigned to John or Jane")
    - Add query history and saved search functionality
 
-3. **Custom Reminder Templates with @mentions (P1)** - HIGH PRIORITY
+4. **Custom Reminder Templates with @mentions (P2)** - MEDIUM PRIORITY
    - Allow for @mentions in reminder messages
    - Create customizable notification templates
    - Add snooze functionality with smart intervals

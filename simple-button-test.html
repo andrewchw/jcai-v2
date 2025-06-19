@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Button Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+
+        button {
+            background: #0066cc;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+        }
+
+        button:hover {
+            background: #0052a3;
+        }
+
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🔧 Simple Button Test</h1>
+    <p>This page tests if JavaScript and buttons are working properly.</p>
+
+    <button onclick="testFunction1()">Test Function 1</button>
+    <button onclick="testFunction2()">Test Function 2</button>
+    <button onclick="testServerConnection()">Test Server</button>
+
+    <div id="status" class="status" style="display:none;"></div>
+
+    <script>
+        console.log('✅ JavaScript loaded successfully');
+
+        function showStatus(message, type = 'success') {
+            const element = document.getElementById('status');
+            element.textContent = message;
+            element.className = `status ${type}`;
+            element.style.display = 'block';
+            console.log('Status:', message);
+        }
+
+        function testFunction1() {
+            console.log('🧪 Test Function 1 called');
+            showStatus('✅ Test Function 1 executed successfully!', 'success');
+        }
+
+        function testFunction2() {
+            console.log('🧪 Test Function 2 called');
+            showStatus('✅ Test Function 2 executed successfully!', 'success');
+
+            // Test toast creation
+            createSimpleToast();
+        }
+
+        function createSimpleToast() {
+            // Create toast container if it doesn't exist
+            let container = document.getElementById('toast-container');
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'toast-container';
+                container.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    z-index: 10000;
+                `;
+                document.body.appendChild(container);
+            }
+
+            // Create toast
+            const toast = document.createElement('div');
+            toast.style.cssText = `
+                background: #28a745;
+                color: white;
+                padding: 15px 20px;
+                border-radius: 8px;
+                margin-bottom: 10px;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+                animation: slideIn 0.3s ease-out;
+            `;
+            toast.innerHTML = `
+                <div style="font-weight: bold;">🍞 Simple Toast Test</div>
+                <div>This toast was created by the simple test!</div>
+            `;
+
+            // Add animation CSS if not already added
+            if (!document.getElementById('toast-animation')) {
+                const style = document.createElement('style');
+                style.id = 'toast-animation';
+                style.textContent = `
+                    @keyframes slideIn {
+                        from { transform: translateX(100%); opacity: 0; }
+                        to { transform: translateX(0); opacity: 1; }
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+
+            container.appendChild(toast);
+
+            // Auto-remove after 3 seconds
+            setTimeout(() => {
+                if (container.contains(toast)) {
+                    container.removeChild(toast);
+                }
+            }, 3000);
+
+            console.log('🍞 Simple toast created');
+        }
+
+        async function testServerConnection() {
+            console.log('🌐 Testing server connection...');
+            showStatus('🔄 Testing server connection...', 'success');
+
+            try {
+                const response = await fetch('http://localhost:8000/api/health');
+                const data = await response.json();
+
+                if (response.ok) {
+                    showStatus('✅ Server connection successful!', 'success');
+                    console.log('✅ Server response:', data);
+                } else {
+                    showStatus(`❌ Server error: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`❌ Connection failed: ${error.message}`, 'error');
+                console.error('❌ Server error:', error);
+            }
+        }
+
+        // Test on page load
+        window.addEventListener('load', () => {
+            console.log('📄 Page loaded successfully');
+            showStatus('✅ Page loaded and JavaScript is working!', 'success');
+        });
+    </script>
+</body>
+
+</html>

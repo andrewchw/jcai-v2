@@ -471,7 +471,16 @@ For detailed implementation details, see: `python-server/MULTI_USER_IMPLEMENTATI
 
 ### Priority Tasks for Phase 2 Implementation
 
-#### 1. File Upload Capability for Evidence Attachment (P0)
+#### 1. Basic Notification System (P0)
+```powershell
+# Implementation areas:
+# - Python server: APScheduler service for due date checking
+# - Jira integration: Query for due/overdue tasks via Atlassian Python API
+# - Browser notifications: Native OS notifications with action buttons
+# - Extension integration: Handle notification responses and user actions
+```
+
+#### 2. File Upload Capability for Evidence Attachment (P1)
 ```powershell
 # Implementation areas:
 # - Edge extension: Drag-and-drop interface in sidebar
@@ -479,7 +488,7 @@ For detailed implementation details, see: `python-server/MULTI_USER_IMPLEMENTATI
 # - Jira integration: Attachment API via Atlassian Python API
 ```
 
-#### 2. Advanced Query Functionality (P1)
+#### 3. Advanced Query Functionality (P1)
 ```powershell
 # Natural language query examples:
 # - "Show me overdue tasks assigned to John"
@@ -487,7 +496,7 @@ For detailed implementation details, see: `python-server/MULTI_USER_IMPLEMENTATI
 # - "What tasks are due tomorrow?"
 ```
 
-#### 3. Custom Reminder Templates with @mentions (P1)
+#### 4. Custom Reminder Templates with @mentions (P2)
 ```powershell
 # Features to implement:
 # - Template system for reminder messages
@@ -495,18 +504,10 @@ For detailed implementation details, see: `python-server/MULTI_USER_IMPLEMENTATI
 # - Snooze functionality with smart intervals
 ```
 
-#### 4. Performance Optimization (P2)
-```powershell
-# Optimization areas:
-# - Query caching for frequent requests
-# - Database indexing for large datasets
-# - Extension startup time improvements
-```
-
 ### Development Timeline for Phase 2
-- **Week 1-2 (June 14-27)**: File upload system implementation
-- **Week 3-4 (June 28-July 11)**: Advanced query functionality
-- **Week 5 (July 12-18)**: Custom reminder templates and optimization
+- **Week 1 (June 16-20)**: Basic notification system implementation
+- **Week 2-3 (June 21-July 4)**: File upload system implementation
+- **Week 4-5 (July 5-18)**: Advanced query functionality and optimization
 
 ### Ready-to-Use Components from Phase 1
 All Phase 1 components are production-ready and can be leveraged for Phase 2 development:

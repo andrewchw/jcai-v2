@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JCAI Extension Notification Demo</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        .demo-container {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #0066cc;
+            text-align: center;
+        }
+
+        .demo-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #f9f9f9;
+        }
+
+        button {
+            background: #0066cc;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+        }
+
+        button:hover {
+            background: #0052a3;
+        }
+
+        .btn-success {
+            background: #28a745;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+        }
+
+        .btn-warning {
+            background: #ffc107;
+            color: #212529;
+        }
+
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.info {
+            background: #cce7ff;
+            color: #004085;
+            border: 1px solid #b8daff;
+        }
+
+        pre {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="demo-container">
+        <h1>🚀 JCAI Extension Notification Demo</h1>
+
+        <div class="demo-section">
+            <h3>📋 Demo Information</h3>
+            <p><strong>Purpose:</strong> Shows how to integrate JCAI notifications into your browser extension</p>
+            <p><strong>User ID:</strong> <code>edge-1749460706591-hh3bdgu8</code></p>
+            <p><strong>API Server:</strong> http://localhost:8000</p>
+        </div>
+
+        <div class="demo-section">
+            <h3>🎯 Step 1: Initialize System</h3>
+            <button onclick="initDemo()" class="btn-success">🚀 Initialize JCAI Notifications</button>
+            <div id="init-status" class="status info" style="display:none;"></div>
+        </div>
+
+        <div class="demo-section">
+            <h3>🔔 Step 2: Test Notifications</h3>
+            <button onclick="testNotification()">🧪 Test Notification</button>
+            <button onclick="startPolling()" class="btn-success">▶️ Start Real Notifications</button>
+            <button onclick="stopPolling()" class="btn-danger">⏹️ Stop Notifications</button>
+            <div id="notification-status" class="status info" style="display:none;"></div>
+        </div>
+
+        <div class="demo-section">
+            <h3>📦 Step 3: Extension Integration</h3>
+            <p>Copy the code from <code>extension-notification-integration.js</code> into your extension:</p>
+            <pre id="integration-code">
+// In your browser extension (content script or popup):
+
+// 1. Include the notification functions
+// (Copy from extension-notification-integration.js)
+
+// 2. Initialize when extension loads
+chrome.runtime.onStartup.addListener(() => {
+    initializeJCAINotifications('your-user-id');
+    startJCAINotificationPolling('your-user-id', 30);
+});
+
+// 3. Handle extension unload
+chrome.runtime.onSuspend.addListener(() => {
+    stopJCAINotificationPolling();
+});
+            </pre>
+            <button onclick="copyCode()" class="btn-warning">📋 Copy Integration Code</button>
+        </div>
+    </div>
+
+    <!-- Include the notification system -->
+    <script src="extension-notification-integration.js"></script>
+
+    <script>
+        const DEMO_USER_ID = 'edge-1749460706591-hh3bdgu8';
+
+        function showStatus(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = `status ${type}`;
+            element.style.display = 'block';
+        }
+
+        function initDemo() {
+            try {
+                initializeJCAINotifications(DEMO_USER_ID);
+                showStatus('init-status', '✅ JCAI notification system initialized successfully!', 'success');
+            } catch (error) {
+                showStatus('init-status', `❌ Initialization failed: ${error.message}`, 'error');
+            }
+        }
+
+        function testNotification() {
+            testJCAINotificationSystem();
+            showStatus('notification-status', '🧪 Test notification sent! Check top-right corner.', 'success');
+        }
+
+        function startPolling() {
+            startJCAINotificationPolling(DEMO_USER_ID, 15); // Poll every 15 seconds
+            showStatus('notification-status', '▶️ Started polling for real JCAI notifications (every 15 seconds)', 'success');
+        }
+
+        function stopPolling() {
+            stopJCAINotificationPolling();
+            showStatus('notification-status', '⏹️ Stopped polling for notifications', 'info');
+        }
+
+        function copyCode() {
+            const code = document.getElementById('integration-code').textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                alert('Integration code copied to clipboard!');
+            });
+        }
+
+        // Auto-initialize on page load
+        window.addEventListener('load', () => {
+            initDemo();
+        });
+    </script>
+</body>
+
+</html>

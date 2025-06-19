@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browser Notification Test - JCAI</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        .container {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #0066cc;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #f9f9f9;
+        }
+
+        .test-section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+
+        button {
+            background: #0066cc;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+        }
+
+        button:hover {
+            background: #0052a3;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status.info {
+            background: #cce7ff;
+            color: #004085;
+            border: 1px solid #b8daff;
+        }
+
+        pre {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            max-height: 300px;
+            font-size: 12px;
+        }
+
+        .user-id {
+            font-family: monospace;
+            background: #e9ecef;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🔔 Browser Notification Test</h1>
+
+        <div class="test-section">
+            <h3>📋 Test Information</h3>
+            <p><strong>Server:</strong> http://localhost:8000</p>
+            <p><strong>Test User ID:</strong> <span class="user-id">edge-1749460706591-hh3bdgu8</span></p>
+            <p><strong>Test Issue:</strong> JCAI-124</p>
+        </div>
+        <div class="test-section">
+            <h3>⚠️ Important: Protocol Notice</h3>
+            <div id="protocol-info" class="status info">
+                <script>
+                    document.write(`Current protocol: ${window.location.protocol}`);
+                    if (window.location.protocol === 'file:') {
+                        document.write('<br><strong>WARNING:</strong> You are viewing this page via file:// protocol. ');
+                        document.write('Edge may not persist notification permissions for local files.<br>');
+                        document.write('<strong>Solution:</strong> Run <code>serve_test_page.ps1</code> to serve this page via HTTP.');
+                    } else {
+                        document.write('<br>✅ Good! You are using HTTP protocol which supports persistent permissions.');
+                    }
+                </script>
+            </div>
+        </div>
+        <div class="test-section">
+            <h3>🔐 Step 1: Check Notification Permission</h3>
+            <button onclick="checkNotificationPermission()">Check Permission</button>
+            <button onclick="requestNotificationPermission()">Request Permission</button>
+            <button onclick="requestPermissionAlternative()" style="background: #ff6b35;">Try Alternative
+                Method</button>
+            <button onclick="openEdgeSettings()" style="background: #28a745;">Open Edge Settings</button>
+            <div id="permission-status" class="status info" style="display:none;"></div>
+            <div id="permission-help" class="status info" style="display:none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🌐 Step 2: Test Server Connection</h3>
+            <button onclick="testServerConnection()">Test Server Health</button>
+            <div id="server-status" class="status info" style="display:none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📨 Step 3: Create Test Notification</h3>
+            <button onclick="createTestNotification()">Create Browser Notification</button>
+            <div id="create-status" class="status info" style="display:none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📥 Step 4: Check Pending Notifications</h3>
+            <button onclick="checkPendingNotifications()">Check Pending</button>
+            <button onclick="clearNotifications()">Clear All</button>
+            <div id="pending-status" class="status info" style="display:none;"></div>
+            <pre id="pending-data" style="display:none;"></pre>
+        </div>
+
+        <div class="test-section">
+            <h3>🎯 Step 5: Test Jira Notification</h3>
+            <button onclick="testJiraNotification()">Test Jira Comment Notification</button>
+            <div id="jira-status" class="status info" style="display:none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>💻 Step 6: Display Browser Notification</h3>
+            <button onclick="showBrowserNotification()">Show Test Browser Notification</button>
+            <div id="browser-status" class="status info" style="display:none;"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000/api';
+        const TEST_USER_ID = 'edge-1749460706591-hh3bdgu8';
+
+        function showStatus(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = `status ${type}`;
+            element.style.display = 'block';
+        }
+
+        function showData(elementId, data) {
+            const element = document.getElementById(elementId);
+            element.textContent = JSON.stringify(data, null, 2);
+            element.style.display = 'block';
+        } async function checkNotificationPermission() {
+            if (!('Notification' in window)) {
+                showStatus('permission-status', 'This browser does not support notifications', 'error');
+                return;
+            }
+
+            const permission = Notification.permission;
+            console.log('Current permission state:', permission);
+            console.log('Current protocol:', window.location.protocol);
+            console.log('Current origin:', window.location.origin);
+
+            let message = `Current permission: ${permission}`;
+            if (window.location.protocol === 'file:') {
+                message += ' (WARNING: file:// protocol may have permission issues)';
+            }
+
+            showStatus('permission-status', message,
+                permission === 'granted' ? 'success' : (permission === 'denied' ? 'error' : 'info'));
+        }
+
+        async function requestNotificationPermission() {
+            if (!('Notification' in window)) {
+                showStatus('permission-status', 'This browser does not support notifications', 'error');
+                return;
+            }
+
+            try {
+                console.log('Requesting notification permission...');
+
+                // For file:// protocol, try a different approach
+                if (window.location.protocol === 'file:') {
+                    showStatus('permission-status', 'Requesting permission for local file...', 'info');
+
+                    // Try the standard method first
+                    const permission = await Notification.requestPermission();
+                    console.log('Permission result:', permission);
+
+                    if (permission === 'granted') {
+                        showStatus('permission-status', `✅ Permission granted: ${permission}`, 'success');
+                        // Test immediately to confirm
+                        setTimeout(() => {
+                            testNotificationImmediately();
+                        }, 1000);
+                    } else {
+                        showStatus('permission-status',
+                            `❌ Permission not granted: ${permission}. Try opening this page via http://localhost:8000 instead of file://`,
+                            'error');
+                    }
+                } else {
+                    const permission = await Notification.requestPermission();
+                    showStatus('permission-status', `Permission result: ${permission}`,
+                        permission === 'granted' ? 'success' : 'error');
+                }
+            } catch (error) {
+                console.error('Permission request error:', error);
+                showStatus('permission-status', `Error requesting permission: ${error.message}`, 'error');
+            }
+        }
+
+        function testNotificationImmediately() {
+            if (Notification.permission === 'granted') {
+                const testNotification = new Notification('🎉 Test Successful!', {
+                    body: 'Notification permissions are working correctly.',
+                    icon: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==',
+                    requireInteraction: false
+                });
+
+                testNotification.onclick = function () {
+                    console.log('Test notification clicked');
+                    this.close();
+                };
+
+                setTimeout(() => {
+                    testNotification.close();
+                }, 3000);
+
+                showStatus('permission-status', '✅ Permission confirmed and test notification sent!', 'success');
+            }
+        }
+
+        async function testServerConnection() {
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    showStatus('server-status', 'Server is running and healthy ✅', 'success');
+                } else {
+                    showStatus('server-status', `Server error: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                showStatus('server-status', `Connection failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function createTestNotification() {
+            try {
+                const response = await fetch(`${API_BASE}/notifications/browser/test/${TEST_USER_ID}`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    showStatus('create-status', `✅ Notification created: ${data.notification_id}`, 'success');
+                } else {
+                    showStatus('create-status', `❌ Failed: ${data.message || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                showStatus('create-status', `Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function checkPendingNotifications() {
+            try {
+                const response = await fetch(`${API_BASE}/notifications/browser/pending/${TEST_USER_ID}`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    showStatus('pending-status', `📥 Found ${data.total_count} pending notifications`, 'success');
+                    showData('pending-data', data);
+                } else {
+                    showStatus('pending-status', `Error checking notifications`, 'error');
+                }
+            } catch (error) {
+                showStatus('pending-status', `Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function clearNotifications() {
+            try {
+                // First get pending notifications
+                const pendingResponse = await fetch(`${API_BASE}/notifications/browser/pending/${TEST_USER_ID}`);
+                const pendingData = await pendingResponse.json();
+
+                if (pendingData.notifications && pendingData.notifications.length > 0) {
+                    // Clear each notification
+                    for (const notification of pendingData.notifications) {
+                        await fetch(`${API_BASE}/notifications/browser/${notification.id}`, {
+                            method: 'DELETE'
+                        });
+                    }
+                    showStatus('pending-status', '🗑️ All notifications cleared', 'success');
+                    document.getElementById('pending-data').style.display = 'none';
+                } else {
+                    showStatus('pending-status', 'No notifications to clear', 'info');
+                }
+            } catch (error) {
+                showStatus('pending-status', `Error clearing: ${error.message}`, 'error');
+            }
+        }
+
+        async function testJiraNotification() {
+            try {
+                const response = await fetch(`${API_BASE}/notifications/jira/test/${TEST_USER_ID}`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+
+                if (response.ok && data.test_result?.success) {
+                    showStatus('jira-status', '✅ Jira notification sent successfully (check JCAI-124 comments)', 'success');
+                } else {
+                    showStatus('jira-status', `❌ Jira test failed: ${data.test_result?.message || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                showStatus('jira-status', `Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function showBrowserNotification() {
+            if (Notification.permission !== 'granted') {
+                showStatus('browser-status', 'Notification permission not granted. Please enable notifications first.', 'error');
+                return;
+            }
+
+            try {
+                // First check if there are pending notifications
+                const response = await fetch(`${API_BASE}/notifications/browser/pending/${TEST_USER_ID}`);
+                const data = await response.json();
+
+                if (data.notifications && data.notifications.length > 0) {
+                    // Show the first pending notification
+                    const notification = data.notifications[0];
+
+                    const browserNotification = new Notification(notification.title, {
+                        body: notification.body,
+                        icon: notification.icon || '/static/icons/notification-general.png',
+                        badge: notification.badge || '/static/icons/badge-general.png',
+                        requireInteraction: notification.requireInteraction || false,
+                        tag: notification.tag
+                    });
+
+                    browserNotification.onclick = function () {
+                        console.log('Notification clicked:', notification);
+                        if (notification.data?.issue_url) {
+                            window.open(notification.data.issue_url, '_blank');
+                        }
+                        this.close();
+                    };
+
+                    showStatus('browser-status', '🔔 Browser notification displayed!', 'success');
+
+                    // Mark as sent after 3 seconds
+                    setTimeout(async () => {
+                        await fetch(`${API_BASE}/notifications/browser/${notification.id}`, {
+                            method: 'DELETE'
+                        });
+                    }, 3000);
+                } else {
+                    showStatus('browser-status', 'No pending notifications. Create one first using Step 3.', 'info');
+                }
+            } catch (error) {
+                showStatus('browser-status', `Error: ${error.message}`, 'error');
+            }
+        }
+
+        // Auto-check permission on page load
+        window.addEventListener('load', checkNotificationPermission);
+    </script>
+</body>
+
+</html>

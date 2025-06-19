@@ -1060,6 +1060,136 @@ class JiraService:
             logger.error(f"Error retrieving all users: {str(e)}")
             return []
 
+    def send_issue_notification(self, issue_key: str, notification_payload: Dict[str, Any]) -> bool:
+        """
+        Send a notification about an issue using Jira comments with mentions
+
+        Args:
+            issue_key: Jira issue key (e.g., "PROJ-123")
+            notification_payload: Notification data including subject, body, and recipients
+
+        Returns:
+            bool: True if notification was sent successfully
+        """
+        try:
+            # Try direct API call first for better control (works with multi-user OAuth)
+            if self._oauth2_token and "access_token" in self._oauth2_token:
+                cloud_id = self._cached_cloud_id or self._get_cloud_id()
+                if cloud_id:
+                    # Extract recipient information
+                    recipients = []
+                    to_data = notification_payload.get('to', {})
+
+                    if 'users' in to_data:
+                        users = to_data['users']
+                        if isinstance(users, list):
+                            for user in users:
+                                if isinstance(user, dict) and 'accountId' in user:
+                                    recipients.append(user['accountId'])
+                                elif isinstance(user, str):
+                                    recipients.append(user)
+
+                    if not recipients:
+                        logger.error("No valid recipients found in notification payload")
+                        return False
+
+                    # Get user info for each recipient to create mentions
+                    user_mentions = []
+                    for account_id in recipients:
+                        try:
+                            # For now, we'll use a generic mention since we have the account ID
+                            user_mentions.append({
+                                "type": "mention",
+                                "attrs": {
+                                    "id": account_id,
+                                    "text": f"@User-{account_id[:8]}"  # Short form for display
+                                }
+                            })
+                        except Exception as e:
+                            logger.warning(f"Could not create mention for user {account_id}: {str(e)}")
+
+                    if not user_mentions:
+                        logger.error("Could not create any user mentions")
+                        return False
+
+                    # Create comment body with mentions
+                    comment_content = [
+                        {
+                            "type": "text",
+                            "text": f"🔔 {notification_payload.get('subject', 'Notification')}\n\n"
+                        },
+                        {
+                            "type": "text",
+                            "text": notification_payload.get('textBody', 'This is a notification from the JCAI system.')
+                        },
+                        {
+                            "type": "text",
+                            "text": "\n\n"
+                        }
+                    ]
+
+                    # Add mentions
+                    for i, mention in enumerate(user_mentions):
+                        if i > 0:
+                            comment_content.append({
+                                "type": "text",
+                                "text": ", "
+                            })
+                        comment_content.append(mention)
+
+                    comment_content.append({
+                        "type": "text",
+                        "text": " - Please review this issue."
+                    })
+
+                    comment_payload = {
+                        "body": {
+                            "type": "doc",
+                            "version": 1,
+                            "content": [
+                                {
+                                    "type": "paragraph",
+                                    "content": comment_content
+                                }
+                            ]
+                        }
+                    }
+
+                    url = f"https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/issue/{issue_key}/comment"
+                    headers = {
+                        "Authorization": f"Bearer {self._oauth2_token['access_token']}",
+                        "Accept": "application/json",
+                        "Content-Type": "application/json"
+                    }
+
+                    logger.info(f"Sending notification as comment for issue {issue_key}")
+                    logger.info(f"Comment URL: {url}")
+                    response = requests.post(url, headers=headers, json=comment_payload)
+
+                    logger.info(f"Comment response status: {response.status_code}")
+
+                    if response.status_code in [200, 201]:
+                        logger.info(f"Successfully sent notification as comment for issue {issue_key}")
+                        return True
+                    else:
+                        logger.error(f"Failed to send notification as comment: {response.status_code} - {response.text}")
+                        return False
+                else:
+                    logger.error("Could not get cloud ID for notification API")
+                    return False
+
+            # Fallback to client method if available
+            if self._client and hasattr(self._client, 'send_notification'):
+                result = self._client.send_notification(issue_key, notification_payload)
+                logger.info(f"Notification sent via client method for issue {issue_key}")
+                return True
+            else:
+                logger.error("No valid authentication method available for sending notifications")
+                return False
+
+        except Exception as e:
+            logger.error(f"Error sending notification for issue {issue_key}: {str(e)}")
+            return False
 
 # Create a singleton instance
 jira_service = JiraService()

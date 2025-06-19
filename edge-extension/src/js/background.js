@@ -80,13 +80,14 @@ async function initialize() {
         if (port.name === 'sidebar') {
             handleSidebarConnection(port);
         }
-    });
-
-    // Listen for messages from content scripts (hover icon)
+    });    // Listen for messages from content scripts (hover icon)
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         console.log('Received message from content script:', message);
 
-        switch (message.action) {
+        // Handle both 'type' and 'action' for backward compatibility
+        const messageType = message.type || message.action;
+
+        switch (messageType) {
             case 'openSidePanel':
                 // Open the side panel
                 if (chrome.sidePanel && chrome.sidePanel.open) {
@@ -105,9 +106,16 @@ async function initialize() {
                 }
                 break;
 
+            case 'ping':
+                // Simple ping-pong for connection testing
+                console.log('Ping received from content script');
+                sendResponse({ success: true, message: 'pong' });
+                break;
+
             default:
-                console.log('Unhandled message action:', message.action);
-                sendResponse({ success: false, error: 'Unknown action' });
+                console.log('Unhandled message type:', messageType);
+                console.log('Full message:', message);
+                sendResponse({ success: false, error: `Unknown message type: ${messageType}` });
         }
 
         // Return true to indicate async response

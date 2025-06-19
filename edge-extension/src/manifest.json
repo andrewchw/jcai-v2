@@ -42,7 +42,7 @@
         "<all_urls>"
       ],
       "js": [
-        "js/content.js"
+        "js/content-enhanced.js"
       ]
     }
   ],
